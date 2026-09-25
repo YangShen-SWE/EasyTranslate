@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.VBox?>
+
+<VBox xmlns:fx="http://javafx.com/fxml"
+      fx:controller="com.easytranslate.view.FloatingViewController"
+      fx:id="root"
+      onMousePressed="#onDragStarted"
+      onMouseDragged="#onDragging"
+      spacing="10"
+      prefWidth="360"
+      prefHeight="160"
+      styleClass="floating-window">
+
+    <padding>
+        <Insets top="10" right="15" bottom="20" left="15"/>
+    </padding>
+
+    <HBox alignment="CENTER_RIGHT"
+          styleClass="drag-bar">
+
+        <Label text="EasyTranslate"
+               styleClass="window-title"/>
+
+        <Region HBox.hgrow="ALWAYS"/>
+
+        <Button text="×"
+                onAction="#onClose"
+                focusTraversable="false"
+                styleClass="close-button"/>
+    </HBox>
+
+    <Label fx:id="sourceLabel"
+           text="English"
+           wrapText="true"
+           styleClass="source-text"/>
+
+    <Label fx:id="translatedLabel"
+           text="中文翻译"
+           wrapText="true"
+           styleClass="translated-text"/>
+
+</VBox>

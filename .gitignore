@@ -1,0 +1,23 @@
+# IDE and build output
+.idea/
+**/.idea/
+**/target/
+**/build/
+*.iml
+
+# Local data and secrets
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-wal
+*.sqlite-shm
+.env
+.env.*
+*.key
+*.p12
+*.pem
+
+# OS files
+.DS_Store
+Thumbs.db

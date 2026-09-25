@@ -1,0 +1,33 @@
+.floating-window {
+    -fx-background-color: #ffffff;
+    -fx-border-color: #cccccc;
+    -fx-border-width: 1;
+    -fx-background-radius: 10;
+    -fx-border-radius: 10;
+    -fx-cursor: move;
+}
+/*
+.drag-bar {
+    -fx-cursor: move;
+}
+*/
+
+.window-title {
+    -fx-font-size: 12px;
+    -fx-text-fill: #777777;
+}
+
+.close-button {
+    -fx-background-color: transparent;
+    -fx-font-size: 16px;
+    -fx-cursor: hand;
+}
+
+.source-text {
+    -fx-font-size: 18px;
+    -fx-font-weight: bold;
+}
+
+.translated-text {
+    -fx-font-size: 16px;
+}
