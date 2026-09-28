@@ -24,7 +24,7 @@ The window also has a little cat that reacts to keyboard and mouse activity. I w
 
 DeepSeek charges for input and output tokens, not for each word. As of 2026-09-28, the [official `deepseek-flash` pricing](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/) lists peak rates of ¥2 per million uncached input tokens and ¥8 per million output tokens; off-peak rates are half of that. This app requests non-thinking translations. If I look up words one at a time and *assume* roughly 20–50 input tokens and 3–12 output tokens per request, ¥10 works out to about **50,000–150,000 English word lookups** at peak rates. That is a rough budget estimate, not a measured promise: actual usage depends on the selected text, the reply, caching, and when the request runs. Check your DeepSeek usage for the real cost.
 
-Tab still reaches the original app. If no text is selected, there is nothing to translate. Selection reading works differently across apps, so some editors and scanned PDFs may not work. The vocabulary book button currently opens a placeholder; it does not save words yet. Light and dark mode switching and a custom translation shortcut are on the [issue list](docs/待解决问题清单.md).
+Tab still reaches the original app. If no text is selected, there is nothing to translate. Selection reading works differently across apps, so some editors and scanned PDFs may not work. The vocabulary book button currently opens a placeholder; it does not save words yet. Light and dark mode switching, a custom translation shortcut, and translating a downloaded image or PDF by dropping it onto the window are on the [issue list](docs/待解决问题清单.md).
 
 The selected text is sent to DeepSeek when you request a translation. Keyboard and mouse activity used for the cat animation is not saved as typed text. For the current scope and other limits, see the [requirements](docs/requirements.md). My development notes are separate: [Version 1](docs/开发笔记（第一版）.md) and [Version 2](docs/开发笔记（第二版）.md).
 
@@ -56,6 +56,6 @@ EasyTranslate 是我做的一个 Windows 悬浮翻译小工具，主要用来看
 
 DeepSeek 按输入和输出的 token 计费，不是按单词数收费。按 2026-09-28 的[官方 `deepseek-flash` 价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)，高峰时段缓存未命中的输入是每百万 token 2 元，输出是每百万 token 8 元，低峰时段减半。现在的程序使用非思考模式。如果每次只查一个单词，并且*假设*每次请求用了约 20～50 个输入 token、3～12 个输出 token，那么按高峰价格估算，**10 元大约能查 5 万～15 万个英文单词**。这只是算预算用的估计，不是实测或保证；选区长度、译文长度、缓存和调用时段都会影响实际花费，最终还是看 DeepSeek 的用量记录。
 
-目前 Tab 也会继续传给原软件；没有有效选区时不会翻译。不同软件暴露选区的方式不一样，所以部分编辑器和扫描版 PDF 可能读不到。单词本现在只有一个“准备中”的窗口，还不能保存词条。白天／夜间模式和自定义翻译快捷键已写进[待解决问题清单](docs/待解决问题清单.md)。
+目前 Tab 也会继续传给原软件；没有有效选区时不会翻译。不同软件暴露选区的方式不一样，所以部分编辑器和扫描版 PDF 可能读不到。单词本现在只有一个“准备中”的窗口，还不能保存词条。白天／夜间模式、自定义翻译快捷键，以及下载图片或 PDF 后拖进悬浮窗翻译，都已写进[待解决问题清单](docs/待解决问题清单.md)。
 
 发起翻译时，选中的文字会发送给 DeepSeek。小猫动效用到的键鼠活动不会作为输入文字保存。当前范围和其他限制见[需求文档](docs/requirements.md)。开发过程单独记在[第一版笔记](docs/开发笔记（第一版）.md)和[第二版笔记](docs/开发笔记（第二版）.md)。
