@@ -4,6 +4,8 @@ module com.easytranslate {
   requires java.prefs;
   requires com.sun.jna;
   requires com.sun.jna.platform;
+  requires java.net.http;
+  requires com.fasterxml.jackson.databind;
   exports com.easytranslate;
   opens com.easytranslate.view to javafx.fxml;
 }

@@ -1,6 +1,7 @@
 package com.easytranslate;
 
 import com.easytranslate.service.hotkey.GlobalHotkeyService;
+import com.easytranslate.service.translation.DeepSeekTranslationService;
 import com.easytranslate.usecase.TranslateSelectionUseCase;
 import com.easytranslate.service.selection.WindowsSelectedTextService;
 import com.easytranslate.service.translation.MockTranslationService;
@@ -61,7 +62,8 @@ public class EasyTranslateApplication extends Application
     tabObserver = new WindowsTabObserverService();
     TranslateSelectionUseCase translateSelection = new TranslateSelectionUseCase(
         new WindowsSelectedTextService(),
-        new MockTranslationService()
+//        new MockTranslationService()
+        new DeepSeekTranslationService()
     );
 
     tabObserver = new WindowsTabObserverService();
