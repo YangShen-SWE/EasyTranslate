@@ -1,152 +1,257 @@
-# EasyTranslate 产品需求
+# What I Want EasyTranslate to Become
 
-> 状态：需求基线 v0.3。本文记录已明确的产品行为；标为“待验证”或“待确认”的内容不能当作已经实现的功能。2026-09-24 的 Tab 按键规则优先于本文此前的相反描述。
+Updated through 2026-09-28, requirements v0.4.
 
-## 1. 项目目标与范围
+I originally got interested because of an input method with translation. Then I found out how much work it could take just to read selected text, so I decided to get desktop selection translation working first. I want to keep the ideas, but cannot list everything I want as something that already works. This is the plan reorganized around the current progress.
 
-EasyTranslate 是一个面向英文阅读和英文表达的 Windows 桌面辅助工具。程序以类似 Bongo Cat 的独立桌面悬浮窗运行，可以始终置于其他应用上方，不作为浏览器、PDF 阅读器、Word、IDE 或其他程序的插件，也不在程序内部提供完整的 PDF 或网页阅读器。
+## 1. Get desktop translation working first
 
-用户在其他程序中划选英文单词或连续词组后，EasyTranslate 获取有效选区、显示原英文及其中文翻译，并将成功显示的翻译记录为一次“阅读求助”。悬浮窗在最后一次翻译更新后的用户设定时间内保持显示该翻译；如果期间没有新的划词事件，则自动进入复习状态，滚动播放词组日志中的高权重词目。一旦产生新的有效划词翻译，悬浮窗立即停止复习播放，切换到最新翻译并重新计时。
+This is a standalone Windows floating window, something like bongocat, used alongside other apps. It is not a browser or PDF plugin, and I am not planning to build a full reader.
 
-程序还通过可在其他程序中使用的输入法辅助，按用户的明确操作提交中文或英文候选。划词翻译和输入求助汇入同一本本地词组日志。输入法候选阶段的按键行为优先于划词翻译。
+The current flow is: select an English word or continuous phrase in another app, press tab, read the valid selection, call DeepSeek, and display the original with a Chinese translation. The code currently specifies deepseek-flash. Longer selections can also be sent, but selection reading has a 1,000-character limit, so this is not yet a complete long-text translator.
 
-第一版目标是在常见 Windows 应用中工作，包括浏览器、文字型 PDF 阅读器、记事本和 IDE。不同程序获取选区的能力可能不同，必须先通过技术样机验证。第一版不做图片型 PDF 的 OCR，不替代浏览器或 PDF 阅读器，不做屏幕上任意文字的 OCR，也不做口语自动评分。
+The JavaFX window, Windows UI Automation selection reading, passive Tab listener, online translation, and appearance settings are in place. The vocabulary book is only an entry point and a “Coming soon” window. Database storage, review playback, and input-method assistance are not implemented.
 
-## 2. 桌面悬浮窗规则
+Browsers, text-based PDFs, Notepad, and IDEs are compatibility goals. Chrome and some desktop apps were tried before, but IDE editors remain unreliable. This is not universal system-wide support. OCR for images and scanned PDFs, and speech scoring, are outside this version.
 
-1. 悬浮窗是独立的 Windows 桌面窗口，不依附于其他应用，也不要求用户安装浏览器或 PDF 插件。
-2. 悬浮窗默认可保持置顶。用户可以关闭置顶、移动窗口，并调整窗口位置；窗口位置应在程序重启后恢复。
-3. 悬浮窗不得因为显示新翻译或切换复习词目而抢走当前应用的键盘焦点，不得打断用户在原应用中的输入或选择操作。
-4. 悬浮窗至少具有以下状态：
-   - **空闲状态：** 当前没有可显示的翻译或复习内容。
-   - **最新翻译状态：** 显示最近一次成功翻译的原英文和中文释义。
-   - **复习播放状态：** 滚动播放词组日志中的高权重词目。
-   - **错误提示状态：** 用非阻塞方式提示暂时无法取得选区、网络失败或翻译失败。
-5. 每次成功显示新的划词翻译后，保持计时器从零重新开始。默认保持时间暂定为 1 分钟，用户可以在设置中修改。
-6. 保持时间从“最近一次成功翻译显示完成”开始计算。无效选区、失败请求和重复回调不得重置计时器。
-7. 保持时间到期且没有新的有效划词翻译时，悬浮窗自动进入复习播放状态。
-8. 复习播放期间出现新的有效划词翻译时，应立即停止当前轮播，显示新翻译并重新开始保持计时。
-9. 用户可以暂停或关闭复习播放。关闭后，保持时间到期时悬浮窗继续显示最后一次翻译或进入空闲状态，具体由用户设置。
-10. 悬浮窗的尺寸、透明度、是否显示中文释义、轮播速度以及是否允许鼠标穿透可作为设置项；鼠标穿透方式须经样机验证，确保用户仍能方便地移动或操作窗口。
+## 2. Keep the current window style
 
-## 3. 全系统划词与翻译规则
+Keep the dark gray rounded panel, mint green accents, simple cat, plant, and coffee cup. GPT helped design and implement the UI. New windows should follow the same style rather than feeling like a different app each time.
 
-1. 划词翻译发生在其他 Windows 应用中。第一版以常见浏览器、文字型 PDF 阅读器、记事本和 IDE 为主要兼容目标。
-2. 用户可以选择“选区稳定后直接翻译”或“选中后按 Tab 翻译”。两种模式均支持英文单词和连续词组。Tab 是当前约定的划词翻译按键。
-3. 仅当输入法不处于候选/组合输入阶段，且当前前台应用中存在有效英文文本选区时，Tab 才触发划词翻译。输入法候选阶段优先处理 Tab 和 Tab＋空格；无有效选区时，不得因翻译功能吞掉原应用正常的 Tab 行为。与系统或其他程序的按键冲突及跨应用可行性须先验证，不能仅凭成功注册全局快捷键就视为满足本规则。
-4. 直接翻译模式只在一次选区完成并稳定后触发，不应在拖动鼠标或选区逐字变化时连续请求翻译、反复刷新悬浮窗或重复记账。
-5. 程序只处理用户明确划选的文本，不持续记录普通键盘输入，不监控整篇文档，也不保存用户所在应用的完整内容。
-6. 翻译应优先给出选中词组在当前语境中的含义，并保留原英文。若技术上能够安全取得上下文，可临时读取最小必要的邻近文本；默认不把邻近句子写入本地日志。
-7. 只有翻译结果实际显示在悬浮窗后，才新增一次“阅读求助”事件。空选区、取消操作、翻译失败和无法取得选区均不增加次数。
-8. 同一次选择操作引发的重复系统事件、剪贴板变化或回调只能显示和记账一次。
-9. 获取选区时不得永久改写用户剪贴板。如果某些应用只能通过模拟复制取得选区，应尽可能恢复原剪贴板内容，并验证不会破坏图片、富文本、多格式内容或剪贴板历史。具体实现方式属于待验证技术问题。
-10. 当目标程序禁止访问选区、内容受保护或选中的不是文字时，应给出简短提示，不得反复尝试、吞掉按键或影响原程序。
-11. 图片型 PDF、扫描件和图片中的文字不属于第一版支持范围。用户在其中划选失败时，不应将失败操作记入词组日志。
+The original and translation appear in independently scrolling columns by default. Settings can hide the original so only the translation remains, and restore both columns without losing content. That switch should not change the width or top-left position, and hidden original text should not keep making the window taller.
 
-## 4. 复习轮播与权重规则
+The window can be dragged, pinned, and restored to its saved position. It provides copy, vocabulary, settings, and close actions. New translations should not steal keyboard focus from the original app; this still needs testing across apps.
 
-1. 复习轮播只从本地词组日志中选择已有词目，不因展示本身新增“阅读求助”或“输入求助”次数。
-2. 轮播优先展示高权重词目。权重应综合考虑求助次数、最近求助时间、阅读与输入两种来源，以及近期是否已经展示，不能只按累计次数排序。
-3. 频繁求助且最近仍被求助的词目应获得较高权重；长时间未求助的词目可逐步降低权重。已掌握词目默认不进入轮播；自动归档词目是否进入轮播由用户设置。
-4. 同一词目在短时间内不应连续重复出现。具体冷却时间和权重公式在实现前通过测试确定，并允许以后调整。
-5. 每个轮播词目至少显示已记录的中文或英文词/词组，以及有记录时的简短对应语言提示。可选显示阅读求助次数、输入求助次数或最近求助时间，但不应使悬浮窗过于拥挤。
-6. 用户可以设置单个词目的展示时间或轮播速度，并可以手动切换到上一个或下一个词目。
-7. 用户可以在悬浮窗中将当前轮播词目标记为“已掌握”、暂时跳过或打开该词目的历史记录。具体按钮布局在界面设计阶段确定。
-8. 新的划词翻译优先级始终高于轮播。新翻译到达后，轮播位置可以保留，待下一次进入复习状态时继续或重新按权重选择。
+Settings currently offers original-text visibility, base font size, small/medium/large window presets, always-on-top, decorations, and animations. Changes apply immediately and are saved locally. Base font size is 16–26 px, with translation text 1 px larger. The three size presets exist; free dragging to resize, transparency, and mouse click-through remain possible later additions. Click-through needs testing so the window remains easy to move and operate.
 
-## 5. 输入法规则
+With no content, show “Waiting for selection”; after success, show “Translation result.” Failures should get a short message that does not interrupt work, but that flow is not fully connected yet. Until the vocabulary book works, say it is coming soon instead of showing fake entries or an unimplemented “Review later” button.
 
-以下按键规则仅在输入法处于中文拼音候选阶段时生效，不监听或记录普通键入。此阶段的处理优先于全系统划词翻译：
+## 3. Let the cat move without making text harder to read
 
-| 操作 | 上屏结果 | 词组日志 |
+Left and right keyboard regions trigger their respective paws; space triggers both. Left and right mouse clicks give the corresponding paw a small tap and glow. Coffee steam rises and fades occasionally, and buttons gently brighten on hover. The head, plant, cup, text, and window position stay still.
+
+These effects are connected and reuse pieces of the original images. Input activity only triggers motion. It does not save typed content, mouse coordinates, or activity history, and does not count as a vocabulary lookup.
+
+Continuous input should be combined, and holding a key must not queue a long chain of animations. The listener passes events through without changing what the original app receives. Disabling effects, hiding decorations, or closing the window stops animations and releases the effects listener. This mapping is desktop-pet feedback, not an implemented input method.
+
+## 4. Rules selection translation still needs to follow
+
+Keep “select, then press tab” for now. Automatic translation after a stable selection is a possible later mode and is not implemented. If added, it must wait for selection to settle rather than sending requests continuously while the mouse is dragged.
+
+Only process text explicitly selected for this operation, without continuously reading whole documents or ordinary typing. The API currently receives the selected fragment. Future context reading should temporarily use only necessary nearby text, explain that behavior, and not store it in the vocabulary book by default.
+
+Tab is currently observed, so the original app still receives it. Key repeat and Alt+Tab have been treated separately, but input-method candidate routing is not implemented. The eventual goal is to prioritize candidate operations and preserve normal Tab behavior without a valid selection. If plain Tab cannot coexist safely in practice, choose another trigger explicitly instead of silently changing the rule.
+
+Empty selections, cancellations, unreadable selections, and failed requests do not count as successful translations. Repeated callbacks from one action should update and record only once. Only the latest request should update the UI; the old-result-overwriting-new-result problem is still pending.
+
+An inaccessible, protected, or non-text selection should get a short message, without repeated attempts. Current reading uses UI Automation, with the element under the mouse as a fallback entry point; it is not OCR. Simulated copying is only an option to investigate. Clipboard restoration, images, rich text, multiple formats, and history must be verified first.
+
+## 5. Vocabulary comes next; keep the recording rules clear
+
+The plan is local MySQL connected through JDBC. That is not connected in the application yet. Configuration stays on the user's machine; schema setup, initialization, and backup instructions will also be needed.
+
+Only a successfully displayed selection translation counts as a “reading help” event. Future explicitly submitted input-method candidates count as “input help.” Failures, cancellations, ordinary typing, viewing candidates, review playback, and animation events do not increase counts.
+
+Each entry should keep a word or continuous phrase, language, a short corresponding meaning, reading and input counts, last-help time, review weight, and state. Each help event should separately record its time, source, submission method, and unique operation ID for deduplication and recalculating statistics.
+
+Case and outer whitespace can be normalized, but phrases should not be split casually. Different meanings with the same spelling should not be merged automatically, and Chinese and English entries should not be merged just because they translate each other. Later, allow manual meaning corrections, duplicate merging, and marking entries as learned.
+
+The vocabulary book should support search and history, show the most requested entries over the last 7 days and overall, and separate reading from input. Frequent requests measure requests for help, not proficiency.
+
+## 6. Idle review remains a later plan
+
+The earlier idea was to keep a new translation for a while, provisionally 1 minute by default, with an adjustable duration. Start timing after the new translation is successfully displayed; failures, empty selections, and duplicate callbacks should not reset it. Once time runs out without a new result, cycle through existing entries. A new successful translation stops review and restarts the timer.
+
+That timer and playback do not exist yet, and neither does “Review later.” Eventually review can be paused or disabled. Whether disabling it leaves the last translation visible or returns to idle can be a setting.
+
+Entry selection should consider recent help, reading/input sources, and recent display, not just lifetime counts. Frequently and recently requested entries get priority; entries not requested for a long time may lose weight. Avoid showing the same entry back to back. The formula and cooldown can be decided through testing later.
+
+Playback should show at least the word or phrase and its existing short corresponding meaning, without crowding the window with counts. Later controls can include speed, previous/next, skipping, history, and marking learned. Playback itself never increases help counts; display time can be stored separately to avoid repetition.
+
+## 7. Archiving and input methods come further down the list
+
+Archiving should be optional: for example, after 30 days without a help request, move an entry from the learning list into an automatic archive while keeping the entry and history. Automatic archiving does not mean it has been learned. Learned status stays separate. Neither state participates in normal playback by default; archived entries could optionally be included.
+
+Requesting an archived entry restores the existing entry with its old counts instead of creating a duplicate. The past year's archive records should be viewable and manually restorable. That year is a display filter, not a rule to delete data after a year.
+
+Input methods are interesting, but not connected yet, and desktop translation should not have to wait for them. Keep the previously agreed candidate-stage rules here:
+
+| Action | Intended result | Record input help? |
 | --- | --- | --- |
-| 空格按输入法原有规则提交 | 输入法正常结果 | 不记录本项目的输入求助 |
-| Tab 确认当前中文候选 | 该中文词或词组 | 中文实际上屏后记录一次“输入求助” |
-| 同时按下 Tab＋空格确认当前英文候选 | 该英文词或词组 | 英文实际上屏后记录一次“输入求助” |
-| 直接输入英文，或仅浏览候选 | 正常输入行为 | 不记录 |
+| Normal space submission | Follow the input method's normal rules | No |
+| Tab confirms a Chinese candidate | The Chinese text is actually committed | Once after success |
+| Tab+Space pressed together | The English candidate is actually committed | Once after success |
+| Direct English typing or browsing candidates | Normal input | No |
 
-例如候选“混凝土／concrete”可用时，用户按 Tab 提交“混凝土”，记录这次中文输入求助；按 Tab＋空格提交 `concrete`，记录这次英文输入求助。只有实际上屏的候选进入日志，不能因为同一输入过程出现其他候选就一并记账。
+For “混凝土 / concrete,” Tab commits Chinese and Tab+Space commits English. The chord must take priority; it must not first commit Chinese or trigger selection translation before handling English. No valid candidate or no actual commit means no event.
 
-没有对应的有效候选或候选未实际上屏时，Tab 和 Tab＋空格不得误记求助。输入法候选阶段的 Tab 不触发划词翻译；同时按下 Tab＋空格必须作为一次英文提交操作处理，组合键优先于单独 Tab，不得先触发中文提交或划词翻译。两种按键与现有输入方案及原应用按键可能冲突，必须先在常见程序中实测。
+Candidate handling takes priority over selection translation. Ordinary typing is not logged. Start with properly licensed local dictionaries instead of sending every pinyin keystroke online. Online candidate supplementation must be explicitly triggered.
 
-上述行为暂定发生在中文尚未上屏的候选阶段。“中文已经上屏后，按快捷键将其替换成英文”是否需要支持，尚待确认；第一版不依赖该能力。
+Reading and input eventually share one local vocabulary book. Input events do not interrupt the current translation by default. Whether to briefly show the newly committed word remains undecided, as does replacing Chinese with English after it has already been committed. Integration is unverified and currently does not depend on Rime. Reliable handoff of input events while the main program is closed also needs validation before implementation.
 
-输入候选优先从有合法授权的本地词库取得，不能在每次拼音按键时自动向在线服务发送内容。若以后支持在线补充候选，必须由用户明确触发并告知发送内容。
+## 8. Data and online services
 
-输入法通过 Tab 提交的中文和通过 Tab＋空格提交的英文事件都应进入同一份本地日志，并可影响复习轮播的权重。输入事件默认不强制打断当前划词翻译显示；是否在悬浮窗短暂显示刚刚上屏的候选，作为可选设置，尚待确认。
+The vocabulary book should keep only explicitly requested words or phrases, necessary short meanings, events, and states by default. Do not store full sentences, PDFs, page contents, window titles, app histories, ordinary keystrokes, uncommitted candidates, or keys.
 
-## 6. 词组日志与统计规则
+Reading one selection does not justify continuous screenshots, clipboard reading, or collection of other apps' text. Temporary access is limited to the current action, and animation signals are not written to disk.
 
-1. 日志只记录明确的求助事件：悬浮窗实际显示成功的划词翻译、输入法通过 Tab 实际提交的中文候选、输入法通过 Tab＋空格实际提交的英文候选。候选曝光、普通空格上屏、直接键入、轮播展示、失败请求均不算求助。
-2. 一条词目至少包含语言类型、规范化的中文或英文词/词组、可选的对应语言提示、阅读求助次数、输入求助次数、最后求助时间、复习权重与状态。每次求助另存一条带时间、来源类型、提交方式和唯一操作标识的事件，以便区分划词、Tab 中文提交、Tab＋空格英文提交，去重并重算统计。
-3. 大小写与首尾空格可规范化；不同词组不随意拆分。相同拼写若对应明显不同的义项，不应未经确认就合并；中文与英文词目不得仅因存在翻译关系就自动合并为同一词目。
-4. 重复求助会增加对应词目的次数。词本界面至少展示“最近 7 天求助最多”“累计求助最多”，并能区分阅读与输入来源；求助次数和轮播权重不得称为熟练度。
-5. 词本界面应可打开、搜索、查看词目历史，并允许用户更正错误释义、合并明显重复的词目以及标记“已掌握”。
-6. 轮播展示可以单独记录最近展示时间，用于避免连续重复，但不得伪装成用户求助事件，也不得增加阅读或输入求助次数。
+Online translation is currently connected to DeepSeek using the local environment variable `EASYTRANSLATE_API_KEY`. Provider information, an explanation of what is sent before enabling it, and an option to disable online translation still need work. Current appearance settings do not provide these.
 
-## 7. 自动归档与恢复规则
+If automatic translation is added, explain that finishing a selection may send it online, and allow switching back to key confirmation. Do not test with passwords, personal sensitive information, or confidential material. Keep real vocabulary data, coursework PDFs, clipboard contents, and keys out of the repository. Use made-up examples for demos.
 
-1. 自动归档由用户自主开启或关闭；开启后可设置未求助天数，例如 30 天。
-2. 在设定天数内没有新的阅读或输入求助时，词目从“待学词表”移至“自动归档”，不删除词目和历史事件。“自动归档”不等于已经学会。
-3. 最近一年的归档记录可在界面中查看，并可手动恢复。这个一年期限是界面筛选范围，不代表一年后自动清除数据。
-4. 归档词再次被求助时，恢复原词目并保留过去的次数与归档记录，不创建第二条相同词目。
-5. 用户可以主动标记“已掌握”。已掌握和自动归档是不同状态，默认都不参与普通复习轮播；用户可以决定自动归档词是否重新参与轮播。
+Images, icons, code, and dictionaries need their sources and licenses retained. Attribution alone does not necessarily permit redistribution.
 
-## 8. 隐私与在线服务规则
+## 9. What to work on next
 
-1. 本地日志默认只保留明确求助的中文或英文词/词组、可选简短释义、事件类型、时间、轮播状态及必要状态；不记录整句、原始键盘输入、未提交的候选、完整 PDF、网页正文、窗口标题、应用使用历史或在线服务密钥。
-2. 程序不得持续截取屏幕、持续读取剪贴板或持续保存其他应用中的文本。为了实现划词获取而临时访问的内容，应限制为完成本次操作所需的最小范围。
-3. 在线翻译必须可关闭。在启用前，应清楚说明服务商及一次请求可能上传的内容：选中片段，以及用户允许时为判断语境所需的最小邻近文本。
-4. 选择“划词即译”并启用在线翻译时，用户在其他程序中完成选区即可能发起网络请求，界面必须明确提示这一点，并允许随时切换为快捷键确认模式。
-5. 隐私说明应提示用户不要用在线翻译处理密码、个人敏感信息或受保密约束的材料。普通键入、完整文档和未选中的内容不得自动上传。
-6. 发布到 GitHub 的仓库不得包含真实个人词本、课程 PDF、浏览记录、剪贴板内容、密钥或其他人的敏感材料。演示与测试使用自造样例。
+First fix request ordering and failure messages, then test selection compatibility, Tab conflicts, and focus. After that, add JDBC storage and a real vocabulary UI. Review weights, archiving, input methods, and packaging come later. The online service is already connected, so improve its configuration and error handling rather than listing provider selection as unstarted work.
 
-## 9. 技术路线与验收顺序
+The current stage needs actual checks for:
 
-当前主程序采用 Java、JavaFX 与 MySQL；第一版词组日志存储在用户本机的 MySQL 数据库中，Java 程序通过 JDBC 连接。数据库连接信息由用户在本机配置，不写入仓库；安装与发布时需说明 MySQL 的安装、初始化和数据备份方式。程序使用无边框、可置顶的 Windows 悬浮窗口；系统选区获取根据样机结果选择 Windows UI Automation、辅助功能接口或受控的复制方案。输入法接入方式尚待验证，当前方案不依赖 Rime。Tab 在输入法候选阶段与划词场景中的分流必须通过技术样机验证，不能假定普通全局快捷键注册就能识别输入法状态并实现优先级。
+- Selection reading in browsers, text-based PDF readers, Notepad, and IDEs, using both words and continuous phrases, without damaging input, focus, or the clipboard on failure.
+- Always-on-top, dragging, position restoration, original-text visibility, font size, and saved preferences, plus multiple monitors, scaling, fullscreen, and the taskbar area.
+- Rapid lookups, cleared selections, offline conditions, and API failures, with only the appropriate result displayed.
+- Effects that leave input intact, do not accumulate on key hold, and release listeners when disabled or closed.
 
-复用代码、词库、图标前须逐项核对许可证；注明来源本身不一定满足再分发义务。
+The standalone UI program previously passed 44 checks; their scope is in the [UI check notes](../design-qa.md). That does not mean all of the scenarios above have been verified.
 
-开发前先完成三个最小技术验证：
+Later vocabulary checks need successful-display-only recording, callback deduplication, no records on failure, search, and history. Playback checks need timing, interruption by new translations, no extra counts from display, and avoiding repetition. Archive testing should use simulated time rather than waiting 30 real days.
 
-1. **全系统划词验证：** 在浏览器、文字型 PDF 阅读器、记事本和 IDE 中分别验证选中英文单词和连续词组、获取稳定选区、Tab 触发翻译、无选区时保留原应用的 Tab 行为、失败不记账，以及不破坏原应用焦点和剪贴板。直接翻译模式还需验证选区稳定后的防抖。记录不兼容程序和原因。
-2. **悬浮窗验证：** 验证窗口置顶、拖动、位置保存、不抢键盘焦点、最新翻译保持计时、计时到期进入高权重词轮播，以及新翻译立即打断轮播并重新计时。还需验证全屏应用、多显示器、缩放比例和任务栏附近的行为。
-3. **输入法与按键优先级验证：** 只用“混凝土 → concrete”一条本地映射，在记事本、浏览器输入框和 IDE 验证空格不记、Tab 中文上屏后只记一次、Tab＋空格英文上屏后只记一次、无对应候选时不误记，以及输入法候选阶段的 Tab 不触发划词翻译。主程序关闭时的有效输入事件也不能丢失。
+For input methods, start with one local “混凝土 → concrete” mapping in Notepad, browser fields, and an IDE. Verify candidate commits, chord priority, and deduplication before expanding.
 
-三个验证通过后，再实现统一日志、复习权重、词本界面、归档设置、在线翻译适配、安装与发布。以上每一项都应有可重复的测试；计时切换使用可控时钟测试，归档天数使用模拟时间测试，不必真实等待 1 分钟或 30 天。
+## 10. A few ideas to keep for later
 
-## 10. MVP 验收标准
+After translating a long passage, perhaps the app could pick out useful linking expressions, sentence patterns, and special phrase uses, or highlight words already in the vocabulary book. It should not automatically save the whole passage or every word, or increase help counts just because a word appeared.
 
-1. 程序能作为独立悬浮窗启动并保持在常见应用上方。
-2. 悬浮窗显示或更新内容时不抢走用户当前输入焦点。
-3. 用户能在至少一种主流浏览器、一种文字型 PDF 阅读器、记事本和一种 IDE 中选中英文后通过 Tab 完成划词翻译；无有效选区时保留原应用的 Tab 行为。
-4. 英文单词和连续词组均能被识别；拖动选择过程中不会连续请求或重复记账。
-5. 翻译成功显示才记录一次阅读求助，失败、取消和重复回调均不记账。
-6. 最新翻译能保持用户设定的时间，默认暂定 1 分钟。
-7. 保持时间到期后自动滚动播放高权重日志词目；新划词能够立即打断轮播。
-8. 轮播展示不会增加求助次数，同一词目不会短时间内连续重复出现。
-9. 输入法候选阶段，Tab 提交中文、Tab＋空格提交英文，各在对应候选真正上屏后记录一次输入求助；普通空格提交、直接键入和未提交候选不记录。输入法候选阶段优先于划词翻译。
-10. 阅读和输入事件进入同一本本地词组日志，并能用于统计和轮播权重计算。
-11. 用户能够搜索词目、查看历史、更正释义、合并重复词目、归档、恢复及标记已掌握。
-12. 在线翻译能够关闭，发送内容符合最小化原则，仓库和安装包不包含真实用户数据或密钥。
+“Appeared in the original” and “I actually asked for help again” need to stay separate. Which fragments are worth saving, whether I should confirm them, and how to keep only necessary pieces of sentence patterns are still undecided. Online analysis that sends longer text also needs its own explanation.
 
-## 11. 后续扩展构想：大段翻译后的学习片段提取
+Stable-selection detection, a copying fallback, click-through, review timing and speed, input-method candidate display, replacing committed text, and dictionary licensing are still open questions. For now, keep the selected cat and window style and make translation and vocabulary work reliably, one step at a time.
 
-当用户划选并翻译较长句子或段落时，翻译结果仍可完整显示，但不把整句、整段或其中所有单词自动加入词本。可将原文拆分并识别为连词与衔接表达、句式、词组及其特殊用法、简单词、已记录过的词或词组。
+---
 
-拟记录的只有两类：一是值得学习的连词、句式、词组特殊用法等片段；二是本地词本中已有、在这次大段翻译中再次出现的词或词组。是否增加求助权重必须由清晰规则或用户确认决定，不能仅因为某个词出现在大段选区内就自动增加一次求助。
+# EasyTranslate 现在想做成什么样
 
-这属于扩展构想，不改变第一版“按明确求助事件记账”的规则。后续需要区分“原文中出现”与“用户确实再次求助”，还需确定可学习片段的识别准确率、是否由用户确认后入本，以及句式如何以最小必要片段保存。在线分析可能上传较长原文时，须另行明确告知并遵守隐私规则。
+更新到 2026-09-28，需求记录 v0.4。
 
-## 12. 待确认事项
+最开始是被带翻译的输入法吸引，后来发现光是读取选中文字就能折腾很久，所以还是先把桌面划词翻译做好。想法先留着，但是不能把想做的全写成已经能用的。这里按现在的进度重新整理一下，之后改功能也照着这份看。
 
-- 直接翻译模式如何可靠判断用户已经完成划选，以及哪些应用无法提供稳定选区，由全系统划词样机确定。
-- 获取选区优先使用 Windows UI Automation，还是允许受控模拟复制作为兼容后备方案，由兼容性和剪贴板安全测试确定。
-- 悬浮窗的默认位置、大小、透明度、鼠标穿透方式、最新翻译默认保持时间和轮播速度，由样机与试用反馈确定。
-- 输入法产生的英文求助是否需要立即显示在悬浮窗中；当前按“只写入日志并影响轮播，不打断划词翻译”规划。
-- 最新翻译保持时间到期且用户关闭轮播时，是继续显示最后翻译还是进入空闲状态，由用户设置决定。
-- 自动归档词是否默认参与复习轮播；当前按“不参与”规划。
-- 输入法是否需要在中文已经上屏后，一键把该中文词替换为英文；当前按“不要求”规划。
-- Tab＋空格已确定为同时按下的组合键；输入法交互样机须验证它优先于单独 Tab，且一次操作只产生一次英文提交和一次输入求助。
-- 在不干扰输入法候选操作及原应用正常 Tab 功能的前提下，是否能可靠地用单独 Tab 跨应用触发划词翻译，须实测；若不能实现，需重新确定安全的触发方式，不得悄悄改变按键规则。
-- 首批本地中英词库与在线翻译服务的来源、质量和许可证，在选型前单独核查。
+## 1. 先把桌面翻译做好
+
+这是一个独立的 Windows 悬浮窗，类似 bongocat，放在其他软件上面用。不是浏览器或 PDF 插件，也不打算自己做一个完整阅读器。
+
+当前主要流程是：在其他程序里选中英文单词或连续词组，按 tab，读取有效选区，调用 DeepSeek，再把原文和中文译文显示出来。当前代码配置的是 deepseek-flash。较长片段也可以送去翻译，但选区读取目前有 1000 字符上限，还不能当成完整长文翻译工具。
+
+现在已有 JavaFX 窗口、Windows UI Automation 选区读取、被动 Tab 监听、在线翻译和外观设置。单词本只有入口和“准备中”窗口，数据库读写、复习轮播、输入法辅助都没实现。
+
+希望覆盖浏览器、文字型 PDF、记事本和 IDE，但这是兼容目标。之前试过 Chrome 和部分桌面软件，IDE 编辑器仍不可靠，不能写成已经全系统通用。图片、扫描 PDF 的 OCR 和口语评分先不做。
+
+## 2. 窗口就沿用现在这套
+
+保留深灰色圆角、薄荷绿强调、简洁的小猫，以及花盆和咖啡杯。UI 用 GPT 辅助设计和实现，后面新增窗口也保持这套风格，不要每开一个窗口就像换了个软件。
+
+原文和译文默认左右放，各自滚动。设置里能关闭原文，只显示译文；恢复双栏时保留内容。切换不改变窗口宽度和左上角位置，隐藏的原文也不该继续撑高窗口。
+
+窗口能拖动、开关置顶、记住位置，提供复制译文、单词本、设置和关闭入口。新翻译到来时不应该抢走原应用的键盘焦点，这一点还需要跨应用实测。
+
+现在设置里有显示原文、正文字号、窗口大小（小、中、大）、置顶、桌面装饰和动态效果，立即生效并保存在本机。字号基准范围是 16–26 px，译文比原文大 1 px。窗口大小已有小、中、大三个档位；自由拖拽缩放、透明度和鼠标穿透先作为后续可选项，鼠标穿透得先验证不会让窗口没法操作。
+
+没有内容时显示“等待划词”，成功后显示“翻译结果”。失败时希望能有简短、不打断操作的提示，这部分还没接完整。单词本没做完就明确写准备中，不展示假词条，也不放没有实现的“稍后复习”按钮。
+
+## 3. 小猫可以动，但是别影响看字
+
+左右键区对应左右爪，空格双爪；鼠标左右键也给对应爪子一点轻拍和亮光。咖啡热气偶尔上浮、淡出，按钮悬停柔和提亮。猫头、植物、杯身、正文和窗口位置保持稳定。
+
+这套效果已经接入，继续使用原来的图片分片。输入活动只用来触发动画，不保存具体键入内容、鼠标坐标或活动历史，也不算查词次数。
+
+连续输入要合并，长按不能堆积一长串动画。监听原样放行事件，不改变原应用收到的输入。关闭动态效果、隐藏装饰或关闭窗口时停止动画并释放对应监听。这里的键鼠映射只是桌宠反馈，不代表输入法功能已经做了。
+
+## 4. 划词翻译还需要守住哪些规则
+
+现在先保留“选中后按 tab”，选区稳定后自动翻译是后续可选模式，暂时没做。以后如果加自动模式，也要等选区稳定，不能拖着选区就连续请求。
+
+只处理这次明确选中的内容，不持续读取整篇文档或普通输入。现在接口发送的是选中片段；以后要读上下文，也只临时读必要的邻近文字，并明确告知，不默认写进词本。
+
+Tab 现在只是被观察，原应用仍会收到按键。长按重复和 Alt+Tab 做过区分，但输入法候选阶段的分流还没做。最终希望候选操作优先，没有有效选区时不影响原应用的 Tab；如果单独 Tab 实测无法安全共存，就重新确定触发方式，不能悄悄换规则。
+
+空选区、取消、无法读取和失败请求都不能当成一次成功翻译。同一次操作的重复回调只能更新和记账一次；连续请求只允许最新请求更新界面，旧结果覆盖新结果的问题目前待修。
+
+选区无法访问、受保护或不是文字时，给个简短提示就够了，不要反复尝试。当前使用 UI Automation，鼠标位置的控件是读取后备入口，不是 OCR。模拟复制还只是备选，必须先验证剪贴板恢复、图片、富文本、多格式和历史记录都不受破坏。
+
+## 5. 词本是下一阶段，先把记录规则留好
+
+计划用本机 MySQL，通过 JDBC 连接，当前程序还没接好。连接配置留在本机，之后还需要补建表、初始化和备份说明。
+
+只有成功显示的划词翻译才算一次“阅读求助”；以后输入法明确提交的候选才算“输入求助”。失败、取消、普通键入、候选曝光、轮播展示和动效事件都不记次数。
+
+每个词目想保留词或连续词组、语言、简短对应释义、阅读和输入次数、最后求助时间、复习权重和状态。每次求助另外记时间、来源、提交方式和唯一操作标识，方便去重和重新统计。
+
+大小写和首尾空格可以规范化，不随便拆开词组；同样拼写的不同义项不要直接合并，中文和英文也不能因为互为翻译就自动并成一条。以后允许手动更正释义、合并重复词目和标记已掌握。
+
+词本希望能搜索、查看历史，看最近 7 天和累计求助最多的内容，也能区分阅读与输入。查得多只能说明求助多，不能直接叫熟练度。
+
+## 6. 空闲时复习，先留作后续计划
+
+之前想的是新翻译保留一段时间，暂定默认 1 分钟，时间可调。计时从成功显示新翻译开始，失败、空选区和重复回调不重置。到时间没有新结果，再轮播已有词目；新的成功翻译一到，就停止轮播并重新计时。
+
+现在没有这套计时和轮播，也没有“稍后复习”操作。以后可以暂停或关闭轮播，关闭后继续留着最后译文还是进入空闲，再通过设置确定。
+
+选词不能只看累计次数，还要考虑最近求助、阅读或输入来源、近期是否展示。频繁且最近还在求助的词优先，长时间没查可以降权，同一个词不要连续出现。公式和冷却时间以后试出来再定。
+
+轮播至少显示词或词组和已有的简短对应释义，次数等信息别挤满小窗口。以后可以调速度、前后切换、暂时跳过、看历史和标记已掌握。轮播本身不增加求助次数，可以单独记展示时间避免重复。
+
+## 7. 归档和输入法再往后放
+
+归档想做成可选：比如 30 天没再求助，就从待学移到自动归档，保留词目和历史，不直接删除。自动归档不等于已经学会，已掌握也要单独标记；两种状态默认不参加普通轮播，自动归档是否参加可以再设。
+
+归档词又被求助时恢复原词目，保留旧次数，不新建重复词。最近一年归档记录可查看和手动恢复，这个一年只是界面筛选范围，不代表一年后删数据。
+
+输入法很感兴趣，但目前不接入，也不让桌面翻译等它做完。之前约定的候选阶段规则保留在这里：
+
+| 操作 | 希望发生什么 | 是否记录输入求助 |
+| --- | --- | --- |
+| 普通空格提交 | 按输入法原规则上屏 | 不记 |
+| Tab 确认中文候选 | 中文实际上屏 | 成功后记一次 |
+| 同时按 Tab＋空格 | 英文候选实际上屏 | 成功后记一次 |
+| 直接输入英文或只看候选 | 正常输入 | 不记 |
+
+比如“混凝土／concrete”，Tab 提交中文，Tab＋空格提交英文。组合键必须优先，不能先提交中文或触发划词翻译再补处理英文。没有有效候选、候选没上屏都不记账。
+
+候选阶段优先于划词翻译，普通键入不存日志。候选先用有合法授权的本地词库，不在每次拼音按键时把内容发到网上；在线补充要用户明确触发。
+
+阅读与输入最后汇进同一本本地词本。输入事件默认不打断当前翻译显示；要不要短暂展示刚上屏的词，之后再定。中文已经上屏后替换成英文也还没决定。接入方式待验证，目前不依赖 Rime；主程序关闭时输入事件怎么可靠交接也要在实现前验证。
+
+## 8. 数据和在线服务
+
+词本默认只保留明确求助的词或词组、必要简短释义、事件和状态，不保存整句、完整 PDF、网页正文、窗口标题、应用历史、普通键入、未提交候选或密钥。
+
+不能为了取一次选区就持续截屏、持续读取剪贴板或收集其他应用文字。临时访问的内容只用于这次操作，动效信号也不落盘。
+
+目前在线翻译已接入 DeepSeek，通过本机环境变量 `EASYTRANSLATE_API_KEY` 配置。服务说明、启用前的发送范围提示和关闭在线翻译的入口还需要补；现在的外观设置不能做到这些。
+
+以后加自动翻译时，要说明完成划选就可能上传选区，并允许切回按键确认。不要拿密码、个人敏感信息或保密材料测试。仓库不放真实词本、课程 PDF、剪贴板内容和密钥，演示用自造样例。
+
+图片、图标、代码和词库都要保留对应来源及许可证，仅写来源不一定就能随意分发。
+
+## 9. 接下来按什么顺序做
+
+先解决请求先后顺序和失败提示，补选区、Tab 冲突及焦点的兼容测试；再做 JDBC 存词和真正的词本界面；最后才是复习权重、归档、输入法和安装发布。已经接上的在线服务继续完善配置与错误处理，不再列成尚未开始的选型任务。
+
+当前阶段要实际检查：
+
+- 浏览器、文字型 PDF、记事本和 IDE 的读取能力，单词和连续词组都试，失败时不破坏输入、焦点或剪贴板。
+- 置顶、拖动、位置恢复、原文开关、字号和偏好保存；还要试多显示器、缩放、全屏和任务栏附近。
+- 连续查词、取消选区、断网和接口失败，窗口只显示该显示的结果。
+- 键鼠动效不影响输入，长按不积压，关闭和退出释放监听。
+
+独立界面程序已经通过过 44 项检查，具体范围看 [界面检查笔记](../design-qa.md)。这不等于上面所有场景都验收了。
+
+后续词本要检查成功显示才记一次、重复回调去重、失败不记、搜索和历史；轮播要检查计时、新翻译打断、展示不增次数和避免重复。归档用模拟时间验证，不必真的等 30 天。
+
+输入法先拿“混凝土 → concrete”一条本地映射，在记事本、浏览器输入框和 IDE 验证候选上屏、组合键优先与去重，再扩大范围。
+
+## 10. 还有一些想法先记着
+
+大段翻译后，也许可以挑出值得学的连接表达、句式和词组特殊用法，或者标出词本里已经有的词。但不能把整段和里面每个单词都自动存进去，也不能只因为出现过就增加求助次数。
+
+要区分“在原文里出现”和“我真的又求助了一次”。哪些片段值得存、是否需要我确认、句式怎样只留必要部分，之后再决定；如果在线分析需要上传更长原文，也要单独说明。
+
+自动翻译怎么判断选完、是否增加复制后备、鼠标穿透、复习时长和速度、输入法候选显示、上屏后的中英替换、词库授权这些都还没最终定。当前先沿用已经选好的小猫和窗口风格，把翻译和词本一步一步做稳。

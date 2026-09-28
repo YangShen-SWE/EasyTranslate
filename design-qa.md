@@ -1,71 +1,93 @@
-# 悬浮窗视觉与交互验收
+# UI Check Notes
 
-日期：2026-09-28
+Updated through 2026-09-28. I used GPT to help design the interface and turn it into a JavaFX window. This page records what was actually looked at and what the check program covered, so there is something to compare against if a later change breaks it.
 
-final result: passed
+## What stayed in the design
 
-## 后续更新：键鼠与装饰动效
+Dark gray `#252b32` with mint green `#8be6c0`, a transparent outside area, and the cat, plant, and coffee cup on top. Fonts are Microsoft YaHei UI / Segoe UI. The original defaults to 22 and the translation to 23, with adjustable sizing.
 
-- 沿用已验收的 PNG，通过 ImageView 视口分离爪子和热气；猫头、花盆、杯身、正文与窗口尺寸不参与动画。
-- 新增左右拍爪、鼠标点击轻亮、咖啡热气循环和按钮悬停渐变；“动态效果”开关保存到 Preferences。关闭效果或隐藏装饰时停止独立监听。
-- 独立 JavaFX 程序输出 `UI_SMOKE_PASSED: 44 checks`。在原有 28 项基础上覆盖左右键映射、空格双爪、长按抑制、活动合并、动画位移与归位、窗口尺寸不变、开关保存、停用复位及原生监听启动/重新启用。
-- 原生输入探针观察到鼠标活动与左键区活动，输入框正常收到 `a`；右键区映射已做程序检查，但本次未完成其手动原生输入检查。
-- 本轮未取得可靠的新窗口截图，既有截图仍代表此前静态外观，不能作为逐帧动效验收。未验证在线翻译、多显示器、全屏和提权应用中的行为。
-- 下文“静态资源”“不安装钩子”等描述是此前版本的历史记录；当前检查程序会临时启用被动动效钩子，预览关闭时释放。
+The original and translation sit side by side with independent scrolling. Hiding the original leaves only the translation. The title bar handles dragging while buttons handle their own clicks, so opening settings should not drag the window away. Short text stays compact; longer text gets a height limit and scrolling.
 
-## 后续更新：显示原文开关与新版设置窗口
+The first white-outline cat was hard to see on light backgrounds. The artwork was changed to have dark gray interiors while keeping the outside transparent. Spacing was tightened too: the minimum short-text viewport went from 84 to 64, with a maximum of 220 for longer content. Generated typography will not exactly match system fonts; readable, unclipped text comes first.
 
-- 设计目标：`docs/ui/translation-only-reference.png`（1564 × 1006）和 `docs/ui/appearance-settings-reference.png`（1254 × 1254）。
-- 实际证据：`docs/ui/translation-only.png` 和 `docs/ui/appearance-settings.png`。两张参考图与两张实际原生窗口截图在同一次比较输入中共同检查。实际主窗宽 588 逻辑像素（面板 560），设置窗口宽 448（面板 420）；按面板宽度归一化比较，不把生成图的桌面背景算进 UI。
-- 状态：显示原文关闭，正文为“一步一步来。”，设置中装饰开启；实际捕获时置顶关闭。这是有效的用户可切换状态，不要求与参考图中的置顶开启一致。
-- 字体与布局：沿用现有字体、字号比例及双语样式；仅译文模式移除原文和分隔线，左对齐使用全部正文宽度。设置窗口的标题、说明、开关和字号控件完整显示，无截字；实际尺寸下可直接检查细节，无需额外局部放大。
-- 配色与图像：继续使用原有石墨灰、薄荷绿及带实色内部的透明猫图；设置窗口复用图标和猫图，无新增绘制的装饰资源。外部保持透明。
-- 文案：新增“显示原文 / 关闭后仅显示译文”；改为“正文字号”；明确更改即时生效并保存。
-- 交互检查从 16 项扩充为 28 项：新增隐藏原文与分隔线、译文占满宽度、隐藏长原文不撑高窗口、位置与宽度稳定、保存开关、隐藏时更新译文、用相同 Preferences 创建全新控制器恢复选项、重新开启恢复布局及文本等检查，均已通过。
-- 无 P0/P1/P2 遗留问题。P3：字号滑块保留原生灰色轨道和薄荷绿滑块，没有复制效果图中左侧轨道的填色；功能与数值反馈正确。
-- 本次修改 `FloatingViewController.java`、`floating-view.fxml`、`floating-window.css` 和独立 UI 检查程序；翻译服务、键盘监听与词本数据逻辑未修改。
-- 此更新 final result: passed。下文保留首次外观改造的检查历史。
+“Review later” was removed because that feature does not exist yet. The empty state says “Waiting for selection,” results say “Translation result,” and the vocabulary window clearly says “Coming soon.”
 
-## 对照与证据
+## Comparing the designs with actual windows
 
-- 设计目标：`docs/ui/design-reference.png`，1564 × 1006。
-- JavaFX 实际窗口截图：`docs/ui/floating-window.png`，588 × 289。
-- 状态：使用离线样例 `Take it one step at a time.` / `一步一步来。`；左下为“翻译结果”。
-- 画布归一化：设计图含桌面背景，主面板约 1132 × 412 像素；按宽度归一为 560 像素后约为 560 × 204。实际面板宽 560，高约 216，外加装饰与阴影边距。JavaFX 用逻辑像素布局，本次窗口截图约为 1x。
-- 设计图和实际截图在同一次比较输入中共同检查。比较主面板区域，忽略设计图外部留白及实际透明区域后方的桌面应用。
-- 字体、控件与装饰在实际尺寸截图中清晰可辨，无需再放大局部才能判断。实际设置窗口也已打开检查；标签、字号滑块和复选框没有裁切。
+| View | Design reference | Actual screenshot |
+| --- | --- | --- |
+| Two-column window | [Design](docs/ui/design-reference.png) | [Window](docs/ui/floating-window.png) |
+| Translation only | [Design](docs/ui/translation-only-reference.png) | [Window](docs/ui/translation-only.png) |
+| Settings | [Design](docs/ui/appearance-settings-reference.png) | [Window](docs/ui/appearance-settings.png) |
 
-## 比较迭代
+The two-column reference is 1564 × 1006 and the actual screenshot is 588 × 289. The translation-only reference is 1564 × 1006; settings is 1254 × 1254. Comparisons use the panel itself, excluding the desktop background around the generated design. At the time, the main panel was 560 wide and settings was 420, or roughly 588 and 448 including outer spacing. The code now also has small, medium, and large presets; those older screenshots only show the large window from that stage.
 
-1. 首轮发现 P2：白色线条小猫、杯子和花盆在浅色背景上难以识别。修复：重新生成透明外部、石墨灰实色内部的图案，并更新 ImageView 视口。
-2. 首轮发现 P2：标题栏和正文留白过大，浮窗遮挡面积偏大。修复：收紧标题栏、底栏、正文间距，短文本视口下限由 84 降至 64，保留长内容 220 像素高度上限。
-3. 修复后再次捕获并与同一效果图共同检查：装饰在白色应用背景上可见，双语、复制、单词本、设置均完整显示；无遗留 P0/P1/P2。
+The sample was “Take it one step at a time.” / “一步一步来。” Text, buttons, and settings labels were not clipped, and decorations were visible on a light background. Always-on-top was off in the translation-only screenshot, which is a valid switch state.
 
-## 五项视觉检查
+The settings slider still uses a native gray track with a mint green thumb, without exactly copying the filled track in the mockup. The main visibility and spacing problems in the static UI were addressed. These screenshots predate the animation switch, so they do not verify the newest settings layout or each animation frame.
 
-- 字体：Microsoft YaHei UI / Segoe UI，正文可调，默认原文 22、译文 23。系统字体与生成图存在字形和换行差异，但无截字，优先真实桌面可读性。
-- 布局：保留双栏、中央分隔、顶部装饰和底栏入口；只有标题栏空白及标题区域可拖动，按钮不会误触拖动。两栏独立滚动，短内容恢复紧凑高度。
-- 配色：石墨灰 `#252b32`，薄荷绿 `#8be6c0`，弱化灰色分隔。选中置顶按钮有背景反馈，这是实际交互状态的有意补充。
-- 图像：使用真实生成的透明 PNG；植物与杯子、小猫均为资源图。图标使用带许可证的 Lucide 原始 SVG，经 JavaFX 渲染；没有用字符或手绘图案代替。
-- 文案：移除“稍后复习”。无结果显示“等待划词”，有结果显示“翻译结果”；未实现的单词本明确为准备中，不展示虚假词条。
+## What the check program covered
 
-## 实际检查
+It started with 16 checks, grew to 28 with the original-text switch, and reached 44 with animations. A run reported `UI_SMOKE_PASSED: 44 checks`.
 
-运行 `EasyTranslate/scripts/check-window.ps1`，JavaFX 界面检查通过 16 项，包括：FXML 和全部资源可加载、空状态禁用复制、中文数据绑定、状态切换、长文本保留和滚动、最大高度、短内容恢复、单词本窗口复用、设置打开、字号即时应用及保存、装饰隐藏与释放空间及保存、置顶切换及保存。
+- The initial checks covered resource loading, bindings, empty copy state, short/long text layout, vocabulary-window reuse, and saved settings.
+- Original-text checks covered hiding the divider, expanding the translation, preventing hidden long text from increasing height, stable position and width, and restoring content.
+- Animation checks covered left/right mapping, space triggering both paws, repeat suppression, combining input, movement and reset, stable window dimensions, saved settings, reset on disable, and native listener startup and re-enabling.
 
-检查使用独立、退出后删除的 Preferences 节点，不安装全局键盘钩子，不调用在线翻译，不写词本。Maven 编译通过；这些界面检查是独立 JavaFX 程序，不应把普通 `mvn test` 的成功当作这 16 项检查的执行。
+The entry point is `EasyTranslate/scripts/check-window.ps1`; the command is in the [window update notes](docs/floating-window-update.md). Checks use temporary Preferences, do not call online translation, and do not write vocabulary. They now temporarily enable passive effects hooks and release them on exit. Normal Maven compilation or `test` does not mean these 44 checks ran.
 
-## 现有范围与后续
+## What still needs checking
 
-- 单词本入口和独立空状态窗口已实现；词目存储、查询、搜索和复习轮播未实现。
-- 小猫和摆件为静态资源；全局拍爪动画未实现。
-- 本次没有验证在线翻译、多显示器、全屏应用和 Windows 原生焦点行为；翻译服务与键盘监听代码没有改动。
-- P3：未来可增加浅色主题、动画与窄窗口上下排版；当前固定宽度适合这次选定的横向样式。
+The native input probe saw mouse and left-side keyboard activity, and the text field received `a` normally. Right-side mapping was checked in code, but a complete manual native-input check remains.
 
-## 检查清单
+There is no reliable new animation screenshot from this round. Online translation, multiple monitors, fullscreen, elevated apps, and different focus transitions were not tested again. Passing the program's checks only covers what those checks actually exercise, not every Windows scenario.
 
-- [x] 对照设计并检查实际原生窗口
-- [x] 修复浅色背景可见性及过大留白
-- [x] 保存实际截图与设计目标
-- [x] 完成独立界面检查
-- [x] 明确功能边界，不把编译通过等同于在线服务或 Windows 集成验收
+A light theme and stacked columns for a narrow window can wait. For now I am keeping this horizontal style. Translation and compatibility deserve more testing next; the remaining work is on the [issue list](docs/待解决问题清单.md).
+
+---
+
+# 界面检查笔记
+
+更新到 2026-09-28。这次用 GPT 帮我设计界面，再改成 JavaFX 窗口。这里记一下实际看过什么、程序检查过什么，后面改坏了也方便回来对照。
+
+## 外观最后留下了什么
+
+深灰色 `#252b32` 配薄荷绿 `#8be6c0`，窗口外部透明，小猫、花盆和咖啡杯放在上边。字体用 Microsoft YaHei UI / Segoe UI，默认原文 22、译文 23，字号可以调。
+
+原文和译文默认左右放，分别滚动；关闭原文后只留译文。标题栏用来拖动，按钮自己处理点击，避免点个设置把窗口拖跑了。短文字保持紧凑，长文字限制显示高度再滚动。
+
+最开始白线小猫放在浅色背景上不太看得清，后来把图案内部换成深灰色，外部仍然透明。也收紧了留白，短文本视口下限从 84 调到 64，长内容高度上限保留 220。生成图的字体和实际系统字体不会完全一样，先保证字能看清、不被截掉。
+
+“稍后复习”已经去掉了，现在没做这个功能。没结果时显示“等待划词”，有结果时显示“翻译结果”，单词本明确写着“准备中”。
+
+## 图和实际窗口怎么对照
+
+| 内容 | 设计参考 | 实际截图 |
+| --- | --- | --- |
+| 双栏悬浮窗 | [设计图](docs/ui/design-reference.png) | [窗口截图](docs/ui/floating-window.png) |
+| 仅显示译文 | [设计图](docs/ui/translation-only-reference.png) | [窗口截图](docs/ui/translation-only.png) |
+| 设置窗口 | [设计图](docs/ui/appearance-settings-reference.png) | [窗口截图](docs/ui/appearance-settings.png) |
+
+双栏参考图是 1564 × 1006，实际截图是 588 × 289。仅译文参考图是 1564 × 1006，设置参考图是 1254 × 1254。对照时只比面板部分，不把生成图周围的桌面背景一起算进去。当时主窗口面板宽 560，设置面板宽 420，带上外部边距分别约 588 和 448。现在代码还加了小、中、大三个窗口档位，这组旧截图只对应当时的大窗口。
+
+当时实际窗口用了 “Take it one step at a time.” / “一步一步来。” 这组样例。正文、按钮和设置项没有截字，浅色背景上的装饰也能看见。仅译文截图里置顶是关闭的，是开关的一种正常状态。
+
+设置滑块还保留了原生灰色轨道和薄荷绿滑块，没有完全照着效果图填色。之前静态界面的主要可见性和留白问题已经修过；这些截图是在新增动效开关之前截的，不代表最新设置窗口或逐帧动画已经验收。
+
+## 检查程序跑过什么
+
+最早只有 16 项，后来加原文开关变成 28 项，这次加动效后是 44 项，已输出过 `UI_SMOKE_PASSED: 44 checks`。
+
+- 原有检查包括资源加载、数据绑定、复制空状态、长短文本布局、单词本窗口复用和设置保存。
+- 原文开关检查了分隔线隐藏、译文占满宽度、隐藏的长原文不撑高窗口、位置和宽度不变，以及重新打开后恢复内容。
+- 动效检查了左右键映射、空格双爪、长按抑制、输入合并、爪子位移和归位、正文窗口尺寸不变、开关保存、停止后复位以及原生监听启动和重新启用。
+
+运行入口是 `EasyTranslate/scripts/check-window.ps1`，具体命令看 [窗口更新说明](docs/floating-window-update.md)。检查使用临时 Preferences，不调用在线翻译、不写词本；现在会临时启用被动动效钩子，退出时释放。普通 Maven 编译或 `test` 不等于跑过这 44 项。
+
+## 还有哪些没检查完
+
+原生输入探针确实看到了鼠标活动和左键区活动，输入框也正常收到 `a`。右键区映射有程序检查，但手动原生输入还没完整试完。
+
+这次没有拿到可靠的新动效截图，也没有重测在线翻译、多显示器、全屏、提权应用和各种焦点切换。程序检查通过，只能说明检查覆盖到的部分通过了，不能直接写成所有 Windows 场景都没问题。
+
+浅色主题和窄窗口上下排版先不做，继续保持现在这个横向窗口。下一步更该花时间检查翻译和兼容性，具体记在 [问题清单](docs/待解决问题清单.md)。

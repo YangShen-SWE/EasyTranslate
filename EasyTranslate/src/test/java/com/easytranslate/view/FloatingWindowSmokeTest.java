@@ -82,6 +82,40 @@ public class FloatingWindowSmokeTest extends Application {
   private void settings() {
     Stage settings = find("EasyTranslate · 设置");
     check(settings.isShowing(), "settings opens");
+    ToggleButton large = (ToggleButton) settings.getScene().lookup("#windowSizeLarge");
+    check(large.isSelected(), "large default selected");
+    large.fire();
+    check(large.isSelected(), "one window size remains selected");
+    ((ToggleButton) settings.getScene().lookup("#windowSizeSmall")).fire();
+    check(Math.abs(root.prefWidth(0) - 420) < 1, "small width applied");
+    check(preferences.get("windowSize", "").equals("SMALL"), "small size saved");
+    later(this::smallWindow);
+  }
+
+  private void smallWindow() {
+    check(Math.abs(stage.getWidth() - 420) < 2, "small stage resized");
+    Stage settings = find("EasyTranslate · 设置");
+    ((ToggleButton) settings.getScene().lookup("#windowSizeMedium")).fire();
+    later(this::mediumWindow);
+  }
+
+  private void mediumWindow() {
+    check(Math.abs(stage.getWidth() - 500) < 2, "medium stage resized");
+    Stage settings = find("EasyTranslate · 设置");
+    check(preferences.get("windowSize", "").equals("MEDIUM"), "medium size saved");
+    try {
+      var loader = new FXMLLoader(getClass().getResource("floating-view.fxml"));
+      loader.setControllerFactory(type -> new FloatingViewController(preferences));
+      Parent restored = loader.load();
+      check(Math.abs(restored.prefWidth(0) - 500) < 1, "window size restored in fresh controller");
+    } catch (Exception e) { throw new AssertionError("reload window size", e); }
+    ((ToggleButton) settings.getScene().lookup("#windowSizeLarge")).fire();
+    later(this::settingsAppearance);
+  }
+
+  private void settingsAppearance() {
+    Stage settings = find("EasyTranslate · 设置");
+    check(Math.abs(stage.getWidth() - 588) < 2, "large stage restored");
     Slider slider = (Slider) settings.getScene().lookup("#fontSizeSlider");
     slider.setValue(24);
     check(preferences.getInt("fontSize", 0) == 24, "font preference saved");

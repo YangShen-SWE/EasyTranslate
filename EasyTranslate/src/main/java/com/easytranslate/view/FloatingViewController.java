@@ -29,6 +29,24 @@ import java.util.Objects;
 import java.util.prefs.Preferences;
 
 public class FloatingViewController {
+  private static final String WINDOW_SIZE_KEY = "windowSize";
+  private enum WindowSize {
+    SMALL(420, 110), MEDIUM(500, 165), LARGE(588, 220);
+
+    final double width;
+    final double maxTextHeight;
+
+    WindowSize(double width, double maxTextHeight) {
+      this.width = width;
+      this.maxTextHeight = maxTextHeight;
+    }
+
+    static WindowSize fromPreference(String value) {
+      try { return WindowSize.valueOf(value); }
+      catch (IllegalArgumentException | NullPointerException ignored) { return LARGE; }
+    }
+  }
+
   @FXML private VBox root;
   @FXML private VBox sourceColumn;
   @FXML private Separator columnDivider;
@@ -53,6 +71,7 @@ public class FloatingViewController {
   private boolean dragging;
   private boolean resizeQueued;
   private int fontSize;
+  private WindowSize windowSize;
 
   public FloatingViewController() {
     this(Preferences.userNodeForPackage(FloatingViewController.class).node("appearance"));
@@ -64,6 +83,8 @@ public class FloatingViewController {
   }
 
   @FXML private void initialize() {
+    windowSize = WindowSize.fromPreference(preferences.get(WINDOW_SIZE_KEY, WindowSize.LARGE.name()));
+    root.setPrefWidth(windowSize.width);
     brandIcon.getChildren().add(WindowIcon.create("leaf", 18));
     brandIcon.getStyleClass().add("brand-icon");
     configureButton(pinButton, "pin", "窗口置顶");
@@ -171,7 +192,7 @@ public class FloatingViewController {
       double translatedWidth = Math.max(120, translatedScroll.getViewportBounds().getWidth() - 8);
       double sourceHeight = showSource.get()
           ? sourceLabel.prefHeight(Math.max(120, sourceScroll.getViewportBounds().getWidth() - 8)) : 0;
-      double height = Math.max(64, Math.min(220,
+      double height = Math.max(64, Math.min(windowSize.maxTextHeight,
           Math.max(sourceHeight, translatedLabel.prefHeight(translatedWidth)) + 8));
       if (Math.abs(sourceScroll.getPrefHeight() - height) > 1) {
         sourceScroll.setPrefHeight(height);
@@ -257,6 +278,28 @@ public class FloatingViewController {
       HBox sliderRow = new HBox(12, label("16", "muted"), slider, label("26", "muted"));
       sliderRow.setAlignment(Pos.CENTER_LEFT);
       HBox.setHgrow(slider, Priority.ALWAYS);
+      ToggleGroup windowSizes = new ToggleGroup();
+      ToggleButton small = windowSizeButton("小", "windowSizeSmall", WindowSize.SMALL, windowSizes);
+      ToggleButton medium = windowSizeButton("中", "windowSizeMedium", WindowSize.MEDIUM, windowSizes);
+      ToggleButton large = windowSizeButton("大", "windowSizeLarge", WindowSize.LARGE, windowSizes);
+      switch (windowSize) {
+        case SMALL -> small.setSelected(true);
+        case MEDIUM -> medium.setSelected(true);
+        case LARGE -> large.setSelected(true);
+      }
+      windowSizes.selectedToggleProperty().addListener((observable, before, after) -> {
+        if (after == null) {
+          if (before != null) before.setSelected(true);
+          return;
+        }
+        windowSize = (WindowSize) after.getUserData();
+        preferences.put(WINDOW_SIZE_KEY, windowSize.name());
+        root.setPrefWidth(windowSize.width);
+        queueResize();
+      });
+      HBox windowSizeRow = new HBox(8, small, medium, large);
+      VBox windowSizeSetting = new VBox(12,
+          label("窗口大小", "setting-label"), windowSizeRow);
       HBox heading = new HBox(12, WindowIcon.create("settings", 26), label("外观设置", "utility-title"));
       heading.setAlignment(Pos.CENTER_LEFT);
       VBox content = new VBox(20, heading,
@@ -264,6 +307,7 @@ public class FloatingViewController {
           settingRow("悬浮窗置顶", "保持在其他窗口上方", alwaysOnTop), new Separator(),
           settingRow("桌面装饰", "显示小猫、花盆和咖啡杯", showDecorations), new Separator(),
           settingRow("动态效果", "键鼠轻反馈与咖啡热气", motionToggle), new Separator(),
+          windowSizeSetting, new Separator(),
           new VBox(14, sizeHeader, sliderRow), new Separator(),
           label("更改立即生效，并自动保存", "muted"));
       settingsStage = appearanceStage(content);
@@ -277,6 +321,17 @@ public class FloatingViewController {
     control.setAccessibleText(name);
     control.getStyleClass().add("appearance-switch");
     return control;
+  }
+
+  private static ToggleButton windowSizeButton(String text, String id,
+                                               WindowSize size, ToggleGroup group) {
+    ToggleButton button = new ToggleButton(text);
+    button.setId(id);
+    button.setAccessibleText("窗口大小：" + text);
+    button.setUserData(size);
+    button.setToggleGroup(group);
+    button.getStyleClass().add("window-size-option");
+    return button;
   }
 
   private static HBox settingRow(String title, String description, CheckBox control) {

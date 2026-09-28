@@ -70,6 +70,8 @@
 .settings-content { -fx-padding: 20 24 24 24; }
 .setting-label { -fx-font-size: 15px; -fx-text-fill: #e9eef2; }
 .setting-value { -fx-font-size: 15px; -fx-text-fill: #dce5eb; }
+.window-size-option { -fx-min-width: 72; -fx-background-color: #38434d; -fx-text-fill: #e9eef2; }
+.window-size-option:selected { -fx-background-color: #304b44; -fx-text-fill: #8be6c0; }
 .appearance-switch { -fx-padding: 4 0 4 4; -fx-cursor: hand; }
 .appearance-switch .box {
     -fx-min-width: 46; -fx-pref-width: 46; -fx-max-width: 46;
