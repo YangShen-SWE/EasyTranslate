@@ -13,6 +13,7 @@ import javafx.application.Platform;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
 import com.easytranslate.config.WindowPositionStore;
@@ -37,12 +38,14 @@ public class EasyTranslateApplication extends Application
     controller.setViewModel(viewModel);
     stage.setTitle("EasyTranslate");
     stage.setAlwaysOnTop(true);
-    stage.initStyle(StageStyle.UNDECORATED);
+    stage.initStyle(StageStyle.TRANSPARENT);
     //伪无边框窗口（同时不包含拖动功能得自己做）
     Scene scene = new Scene(root);
+    scene.setFill(Color.TRANSPARENT);
     scene.getStylesheets().add(EasyTranslateApplication.class.getResource(
         "/com/easytranslate/view/floating-window.css").toExternalForm());
     stage.setScene(scene);
+    controller.configureStage(stage);
     WindowPositionStore positionStore = new WindowPositionStore();
     positionStore.restore(stage);
     //读取旧坐标，设置窗口位置
@@ -59,13 +62,13 @@ public class EasyTranslateApplication extends Application
 //        )
 //    );
 //    timer.play();
-    tabObserver = new WindowsTabObserverService();
     TranslateSelectionUseCase translateSelection = new TranslateSelectionUseCase(
         new WindowsSelectedTextService(),
 //        new MockTranslationService()
         new DeepSeekTranslationService()
     );
 
+    controller.enableGlobalInput();
     tabObserver = new WindowsTabObserverService();
     tabObserver.start(() ->
         translateSelection.execute().thenAccept(maybeTranslation ->
