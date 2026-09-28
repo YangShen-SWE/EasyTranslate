@@ -68,6 +68,9 @@
 
 .settings-companion { -fx-padding: 0 0 0 26; -fx-translate-y: 5; }
 .settings-content { -fx-padding: 20 24 24 24; }
+.settings-scroll, .settings-scroll > .viewport { -fx-background-color: transparent; }
+.settings-scroll { -fx-background-insets: 0; -fx-padding: 0; }
+.settings-content .password-field { -fx-background-color: #38434d; -fx-text-fill: #e9eef2; -fx-prompt-text-fill: #9aa9b3; }
 .setting-label { -fx-font-size: 15px; -fx-text-fill: #e9eef2; }
 .setting-value { -fx-font-size: 15px; -fx-text-fill: #dce5eb; }
 .window-size-option { -fx-min-width: 72; -fx-background-color: #38434d; -fx-text-fill: #e9eef2; }

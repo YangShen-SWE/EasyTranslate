@@ -95,7 +95,7 @@ The vocabulary book should keep only explicitly requested words or phrases, nece
 
 Reading one selection does not justify continuous screenshots, clipboard reading, or collection of other apps' text. Temporary access is limited to the current action, and animation signals are not written to disk.
 
-Online translation is currently connected to DeepSeek using the local environment variable `EASYTRANSLATE_API_KEY`. Provider information, an explanation of what is sent before enabling it, and an option to disable online translation still need work. Current appearance settings do not provide these.
+Online translation is currently connected to DeepSeek using an API key saved in settings and encrypted for the current Windows user. Provider information, an explanation of what is sent before enabling it, and an option to disable online translation still need work.
 
 If automatic translation is added, explain that finishing a selection may send it online, and allow switching back to key confirmation. Do not test with passwords, personal sensitive information, or confidential material. Keep real vocabulary data, coursework PDFs, clipboard contents, and keys out of the repository. Use made-up examples for demos.
 
@@ -225,7 +225,7 @@ Tab 现在只是被观察，原应用仍会收到按键。长按重复和 Alt+Ta
 
 不能为了取一次选区就持续截屏、持续读取剪贴板或收集其他应用文字。临时访问的内容只用于这次操作，动效信号也不落盘。
 
-目前在线翻译已接入 DeepSeek，通过本机环境变量 `EASYTRANSLATE_API_KEY` 配置。服务说明、启用前的发送范围提示和关闭在线翻译的入口还需要补；现在的外观设置不能做到这些。
+目前在线翻译已接入 DeepSeek，API Key 在设置中保存，并为当前 Windows 用户加密。服务说明、启用前的发送范围提示和关闭在线翻译的入口还需要补。
 
 以后加自动翻译时，要说明完成划选就可能上传选区，并允许切回按键确认。不要拿密码、个人敏感信息或保密材料测试。仓库不放真实词本、课程 PDF、剪贴板内容和密钥，演示用自造样例。
 

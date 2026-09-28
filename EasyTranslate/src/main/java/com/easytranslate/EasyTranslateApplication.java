@@ -1,5 +1,6 @@
 package com.easytranslate;
 
+import com.easytranslate.config.ApiKeyStore;
 import com.easytranslate.service.hotkey.GlobalHotkeyService;
 import com.easytranslate.service.translation.DeepSeekTranslationService;
 import com.easytranslate.usecase.TranslateSelectionUseCase;
@@ -62,19 +63,31 @@ public class EasyTranslateApplication extends Application
 //        )
 //    );
 //    timer.play();
+    ApiKeyStore apiKeyStore = new ApiKeyStore();
     TranslateSelectionUseCase translateSelection = new TranslateSelectionUseCase(
         new WindowsSelectedTextService(),
 //        new MockTranslationService()
-        new DeepSeekTranslationService()
+        new DeepSeekTranslationService(apiKeyStore)
     );
 
     controller.enableGlobalInput();
     tabObserver = new WindowsTabObserverService();
     tabObserver.start(() ->
-        translateSelection.execute().thenAccept(maybeTranslation ->
-            maybeTranslation.ifPresent(translation ->
-                Platform.runLater(() -> viewModel.showTranslation(translation))
-            )
+        translateSelection.execute().whenComplete((maybeTranslation, error) ->
+            Platform.runLater(() -> {
+              if (error != null) {
+                Throwable cause = error;
+                while (cause.getCause() != null) cause = cause.getCause();
+                String message = cause.getMessage();
+                controller.showTranslationError(message != null && message.startsWith("请先在设置中保存")
+                    ? message : "翻译失败，请检查网络或 API Key");
+              } else {
+                maybeTranslation.ifPresent(translation -> {
+                  viewModel.showTranslation(translation);
+                  controller.clearTranslationError();
+                });
+              }
+            })
         )
     );
 //    SelectedTextService selectionService = new WindowsSelectedTextService();

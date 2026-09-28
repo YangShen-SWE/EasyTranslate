@@ -1,93 +1,61 @@
-# EasyTranslate Development Notes — Version 2
+# EasyTranslate
 
-Last time, I was still figuring out how to read selected text. Now deepseek-flash is connected, so I can finally stop looking at “mock translation” and pretending it worked. The basic idea is still the same: select some text in another app, press tab, and show the original and translation in a floating window.
+EasyTranslate is a small Windows floating translator I made for reading English in other apps. Select a word or phrase, press Tab, and the floating window shows the original text beside a Chinese translation. It uses DeepSeek's `deepseek-flash` model, so translation needs an internet connection and your own DeepSeek API Key.
 
-Once translation worked, I started finding the window a bit too plain. I had wanted something like a bongocat desktop pet from the start, and somehow the list of things I wanted kept growing. This time I redid the UI and got the cat moving. It is a little closer to what I first had in mind.
+The window also has a little cat that reacts to keyboard and mouse activity. I wanted it to be pleasant to keep on the desktop, but the text is still the main part.
 
-## Spent some time on the UI
+## What it can do
 
-I used GPT to help design the UI and modify the JavaFX interface and animation code. My part was mostly explaining what I wanted, looking at the result, and then changing what I wanted again. After a few versions, I liked the keyboard and mouse interaction from the second design, but preferred the simple cat from the third. We ended up finding a way to combine them.
+- Read a valid text selection from another Windows app and translate it after you press Tab.
+- Show the original and translation side by side, with a button to copy the translation.
+- Pin the floating window above other windows, or move it out of the way.
+- Set the window to small, medium, or large (large is the default), change the text size, or hide the original text.
+- Show or hide the cat, plant, and coffee cup, and turn their motion off if it gets distracting.
+- Save a DeepSeek API Key in settings and delete it there later. The key is encrypted for the current Windows user; the input box does not display a saved key.
 
-The window now has dark gray rounded corners, a little mint green, a cat resting on top, and a plant and coffee cup beside it. I have not added a whole keyboard and mouse setup for the cat. It just taps the window edge for now, which also keeps the window smaller. The main thing is still reading translations.
+## Install and use
 
-The original and translation sit side by side by default, with separate scrolling for longer text. There are also buttons to copy the translation, pin the window, open the vocabulary book, and open settings. At least the usual actions are easy to find now.
+1. Download `EasyTranslate-2.1.0.exe` from [GitHub Releases](https://github.com/YangShen-SWE/EasyTranslate/releases) and run the installer. The installer includes the Java runtime.
+2. Open EasyTranslate, click **设置**, enter your DeepSeek API Key, and click **保存**. You need to obtain the key from DeepSeek yourself; it is not included with the app.
+3. Select English text in another app and press **Tab**. If that app exposes its selection to Windows, the translation appears in the floating window.
+4. Use **复制译文** to copy the result. In **设置**, you can also choose the window size and adjust the other appearance options. To remove your saved key, click **删除** next to the API Key field.
 
-At one point GPT added a “Review later” option. It looked convincing, but then I realized I had not actually built that feature, so I removed it. I think you still have to keep an eye on your requirements when using GPT for UI work, or you end up with things that look usable but do nothing yet.
+## About API cost
 
-## Settings has its own window now
+DeepSeek charges for input and output tokens, not for each word. As of 2026-09-28, the [official `deepseek-flash` pricing](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/) lists peak rates of ¥2 per million uncached input tokens and ¥8 per million output tokens; off-peak rates are half of that. This app requests non-thinking translations. If I look up words one at a time and *assume* roughly 20–50 input tokens and 3–12 output tokens per request, ¥10 works out to about **50,000–150,000 English word lookups** at peak rates. That is a rough budget estimate, not a measured promise: actual usage depends on the selected text, the reply, caching, and when the request runs. Check your DeepSeek usage for the real cost.
 
-The settings window uses the same dark gray and mint green, with a cat on top too. It lets me show or hide the original text, change the font size, choose a small, medium, or large window, toggle always-on-top, and switch decorations and animations on or off.
+Tab still reaches the original app. If no text is selected, there is nothing to translate. Selection reading works differently across apps, so some editors and scanned PDFs may not work. The vocabulary book button currently opens a placeholder; it does not save words yet. Light and dark mode switching and a custom translation shortcut are on the [issue list](docs/待解决问题清单.md).
 
-Sometimes I just want a quick look at the translation, so keeping the original next to it takes up space. That is why I added “Show original text.” Turning it off lets the translation fill the text area; turning it back on restores both columns. The content stays there, and the window does not suddenly move.
-
-These choices are saved locally, so I do not have to set them again next time. I am using Java's built-in Preferences for now. No need to connect a database just for a few switches.
-
-## The cat can finally tap its paws
-
-Before this, it was just a cat image. Now there is a simple keyboard and mouse mapping: keys on the left move the left paw, keys on the right move the right paw, and space moves both. Left and right mouse clicks also trigger the corresponding paw, with a small mint green glow.
-
-The plant stays quiet for now. The coffee steam floats up and fades every so often, and buttons have a slight fade when hovered. The whole cat and window do not bounce around; the text stays still. Reading English is enough work already without having to chase the words.
-
-The implementation keeps the same cat image, splitting the paws and steam into separate animated parts. The keyboard and mouse feedback uses a separate passive listener, while the existing tab translation logic stays the same. It only uses key regions and clicks to trigger motion, without saving the actual input.
-
-It also cannot queue one animation for every keystroke, or the cat would still be busy after I stopped typing. Short bursts of input are combined, and holding a key does not keep piling up paw taps. If the movement gets annoying, I can turn it off in settings. Hiding the decorations stops that listener too.
-
-## What is still missing
-
-The vocabulary book has a button and a window now, but it still says “Coming soon.” There is no actual word storage, lookup, or review yet. The entry point is there; I will work through the database part later. Having a button does not mean the feature is finished.
-
-The standalone UI check passed 44 checks in this round, including original-text visibility, saved settings, paw reset, and listener toggling. That does not mean everything works in every app. Only part of the native input behavior was tested manually, and fullscreen and multiple monitors still need checking. This round focused on the interface, so online translation was not tested again.
-
-Some apps still do not expose their selected text. A nicer window does not fix that by itself. Older translation requests can also finish late and overwrite newer results; that is still on the [issue list](docs/待解决问题清单.md).
-
-Next I want to make the translation flow more reliable, then connect the vocabulary book. The desktop pet is starting to take shape. Hopefully it will eventually help me learn a few more English words, rather than just becoming another cat I keep on my desktop.
-
-Earlier work is in the [Version 1 notes](docs/开发笔记（第一版）.md). The [requirements](docs/requirements.md), [window update notes](docs/floating-window-update.md), and [issue list](docs/待解决问题清单.md) have the details.
+The selected text is sent to DeepSeek when you request a translation. Keyboard and mouse activity used for the cat animation is not saved as typed text. For the current scope and other limits, see the [requirements](docs/requirements.md). My development notes are separate: [Version 1](docs/开发笔记（第一版）.md) and [Version 2](docs/开发笔记（第二版）.md).
 
 ---
 
-# EasyTranslate 开发笔记（第二版）
+# EasyTranslate 中文说明
 
-上一版还在折腾怎么把选中的文字读出来，现在已经接上了 deepseek-flash，终于不用看着“模拟译文”几个字假装翻译成功了。基本用法还是在别的软件里选中文字，按 tab，把原文和译文显示到悬浮窗上。
+EasyTranslate 是我做的一个 Windows 悬浮翻译小工具，主要用来看其他软件里的英文。选中单词或词组后按 Tab，悬浮窗会把原文和中文译文放在一起。翻译目前使用 DeepSeek 的 `deepseek-flash` 模型，需要联网，也需要你自己的 DeepSeek API Key。
 
-翻译能用了之后又开始嫌弃窗口太简单，之前就想做成类似 bongocat 的桌宠，结果越想加的东西越多。这次先把界面重新弄了一遍，顺便让小猫动起来，离最开始想象的样子近了一点。
+窗口上还有一只会跟着键盘和鼠标轻轻动的小猫。我想让它放在桌面上看着舒服一点，不过重点还是读译文。
 
-## 这次先折腾了一下 UI
+## 现在能做什么
 
-这部分用了 GPT 帮我设计 UI，也让它帮忙改了 JavaFX 界面和动效代码。我主要负责提需求、看效果，再继续改需求。看了几版之后，喜欢第二版的键鼠互动，又喜欢第三版简洁的小猫，最后还是想办法把两个放到一起了。
+- 在其他 Windows 软件里读取有效的文字选区，按 Tab 后请求翻译。
+- 左右显示原文和译文，也可以一键复制译文。
+- 让悬浮窗保持置顶，或者把它拖到不挡视线的位置。
+- 选择小、中、大三档窗口大小（默认是大），调整字号，或者关掉原文只看译文。
+- 显示或隐藏小猫、花盆和咖啡杯；觉得动效分心，也可以单独关掉。
+- 在设置里保存或删除 DeepSeek API Key。密钥会为当前 Windows 用户加密保存，输入框不会回显已经保存的密钥。
 
-现在是深灰色的圆角窗口，配一点薄荷绿，上面趴着一只小猫，旁边保留了花盆和咖啡杯。暂时没有给小猫再摆一整套键盘鼠标，先让它直接拍窗框，窗口也能小一点，毕竟主要还是拿来看翻译的。
+## 安装和使用
 
-原文和译文默认左右放，长一点的内容可以分别滚动。也加了复制译文、置顶、单词本和设置这些按钮，至少常用操作不用再到处找了。
+1. 在 [GitHub Releases](https://github.com/YangShen-SWE/EasyTranslate/releases) 下载 `EasyTranslate-2.1.0.exe` 并运行安装程序。安装包已经带上 Java 运行环境。
+2. 打开 EasyTranslate，点击**设置**，输入自己的 DeepSeek API Key，再点**保存**。密钥需要自己去 DeepSeek 获取，软件不附带密钥。
+3. 在其他软件里选中英文，再按 **Tab**。如果那个软件允许 Windows 读取选区，译文就会出现在悬浮窗里。
+4. 点**复制译文**可以复制结果。窗口大小和其他外观选项也在**设置**里；要移除密钥，点 API Key 输入框旁边的**删除**。
 
-中间 GPT 还给我设计了一个“稍后复习”，看着挺像那么回事，但是想了一下我目前并没有做这个功能，就先去掉了。感觉用 GPT 做界面还是得自己盯着需求，不然很容易多出一些看起来能用、实际上还没做的东西。
+## API 费用大概多少
 
-## 设置也有单独的窗口了
+DeepSeek 按输入和输出的 token 计费，不是按单词数收费。按 2026-09-28 的[官方 `deepseek-flash` 价格](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/)，高峰时段缓存未命中的输入是每百万 token 2 元，输出是每百万 token 8 元，低峰时段减半。现在的程序使用非思考模式。如果每次只查一个单词，并且*假设*每次请求用了约 20～50 个输入 token、3～12 个输出 token，那么按高峰价格估算，**10 元大约能查 5 万～15 万个英文单词**。这只是算预算用的估计，不是实测或保证；选区长度、译文长度、缓存和调用时段都会影响实际花费，最终还是看 DeepSeek 的用量记录。
 
-设置窗口沿用了同样的深灰色和薄荷绿，上面也有小猫。现在可以切换是否显示原文、调整字号、选择小中大三个窗口尺寸、开关置顶，还有是否显示桌面装饰和动态效果。
+目前 Tab 也会继续传给原软件；没有有效选区时不会翻译。不同软件暴露选区的方式不一样，所以部分编辑器和扫描版 PDF 可能读不到。单词本现在只有一个“准备中”的窗口，还不能保存词条。白天／夜间模式和自定义翻译快捷键已写进[待解决问题清单](docs/待解决问题清单.md)。
 
-有时候只是想扫一眼译文，原文一直放在旁边也有点占地方，所以加了“显示原文”的开关。关掉之后译文会用满正文区域，再打开就恢复双栏，内容不会清空，窗口也不会跟着突然换位置。
-
-这些设置会保存在本机，下次打开不用再调一遍。目前用的是 Java 自带的 Preferences，还没有为了几个开关去接数据库。
-
-## 小猫终于能拍爪了
-
-之前只是摆了一张小猫图片，这次加上了简单的键鼠映射。按左边键区时左爪动，右边键区时右爪动，空格就两只一起拍。鼠标左右键也会对应拍一下，带一点薄荷绿的亮光。
-
-花盆暂时安静待着，咖啡杯的热气会隔一会儿往上飘一下，再慢慢消失，按钮放上鼠标也有一点渐变。没有让整个小猫和窗口一起晃，正文还是保持不动，不然看英文已经够费劲了，还得追着字看。
-
-实现上没有重新换一只猫，而是继续用原来的图片，把爪子和热气分开做动画。键鼠反馈另外加了一套被动监听，原来的 tab 翻译逻辑没有改；这里只根据按键区域和点击触发动效，不保存具体输入内容。
-
-连续打字的时候也不能按一下就排一个动画，不然停下来之后猫还在忙。所以会合并短时间里的输入，长按同一个键也不会一直堆积拍爪。嫌它动来动去的话，可以直接在设置里关掉，隐藏装饰时也会停掉这套监听。
-
-## 目前还差什么
-
-单词本现在有按钮，也能打开窗口，但是里面还是“准备中”，还没有真正的词条存储、查询和复习。先把入口留好了，数据库这部分后面再一点一点补，不能有个按钮就算做完了。
-
-这次独立的界面检查通过了 44 项，包括原文显示切换、设置保存、拍爪归位和监听开关这些。不过检查通过不代表所有软件里都没问题，原生输入只做了部分实际验证，全屏、多显示器这些情况还得继续试。这轮主要改界面，也没有重新验证在线翻译。
-
-之前部分应用读不到选区的问题也还在，换了个好看的窗口并不会顺便把兼容性修好。连续翻译时旧请求可能覆盖新结果的问题，也还在[待解决问题清单](docs/待解决问题清单.md)里。
-
-下一步还是想先把翻译流程弄稳，再接词本。桌宠现在算是有一点样子了，希望后面真的能帮我多认几个英语单词，而不是又多了一个放在桌面上看的小猫。
-
-之前的过程在 [第一版笔记](docs/开发笔记（第一版）.md)，更具体的内容看 [需求文档](docs/requirements.md)、[窗口更新说明](docs/floating-window-update.md) 和 [问题清单](docs/待解决问题清单.md)。
+发起翻译时，选中的文字会发送给 DeepSeek。小猫动效用到的键鼠活动不会作为输入文字保存。当前范围和其他限制见[需求文档](docs/requirements.md)。开发过程单独记在[第一版笔记](docs/开发笔记（第一版）.md)和[第二版笔记](docs/开发笔记（第二版）.md)。

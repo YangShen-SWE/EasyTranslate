@@ -1,5 +1,6 @@
 package com.easytranslate.view;
 
+import com.easytranslate.config.ApiKeyStore;
 import com.easytranslate.viewmodel.FloatingViewModel;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
@@ -61,6 +62,7 @@ public class FloatingViewController {
   @FXML private Button closeButton, copyButton, vocabularyButton, settingsButton;
 
   private final Preferences preferences;
+  private final ApiKeyStore apiKeyStore;
   private final BooleanProperty showSource = new SimpleBooleanProperty(true);
   private final BooleanProperty motionEnabled = new SimpleBooleanProperty(true);
   private CompanionMotion motion;
@@ -72,14 +74,21 @@ public class FloatingViewController {
   private boolean resizeQueued;
   private int fontSize;
   private WindowSize windowSize;
+  private String translationError;
 
   public FloatingViewController() {
-    this(Preferences.userNodeForPackage(FloatingViewController.class).node("appearance"));
+    this(Preferences.userNodeForPackage(FloatingViewController.class).node("appearance"),
+        new ApiKeyStore());
   }
 
   // Package-visible injection lets UI checks use isolated, disposable preferences.
   FloatingViewController(Preferences preferences) {
+    this(preferences, new ApiKeyStore(preferences));
+  }
+
+  FloatingViewController(Preferences preferences, ApiKeyStore apiKeyStore) {
     this.preferences = preferences;
+    this.apiKeyStore = apiKeyStore;
   }
 
   @FXML private void initialize() {
@@ -176,8 +185,20 @@ public class FloatingViewController {
 
   private void refreshStatus() {
     boolean hasTranslation = viewModel != null && !viewModel.translatedTextProperty().get().isEmpty();
-    statusLabel.setText(hasTranslation ? "翻译结果" : "等待划词");
-    statusDot.pseudoClassStateChanged(PseudoClass.getPseudoClass("ready"), hasTranslation);
+    statusLabel.setText(translationError != null ? translationError :
+        hasTranslation ? "翻译结果" : "等待划词");
+    statusDot.pseudoClassStateChanged(PseudoClass.getPseudoClass("ready"),
+        translationError == null && hasTranslation);
+  }
+
+  public void showTranslationError(String message) {
+    translationError = message;
+    refreshStatus();
+  }
+
+  public void clearTranslationError() {
+    translationError = null;
+    refreshStatus();
   }
 
   // Grow for a few lines, then keep the floating window bounded and scroll each language.
@@ -300,6 +321,49 @@ public class FloatingViewController {
       HBox windowSizeRow = new HBox(8, small, medium, large);
       VBox windowSizeSetting = new VBox(12,
           label("窗口大小", "setting-label"), windowSizeRow);
+      PasswordField apiKeyField = new PasswordField();
+      apiKeyField.setId("apiKeyField");
+      apiKeyField.setAccessibleText("DeepSeek API Key");
+      apiKeyField.setPromptText("输入 DeepSeek API Key");
+      apiKeyField.setMaxWidth(Double.MAX_VALUE);
+      Label apiKeyStatus = label(apiKeyStore.hasSavedKey() ? "已保存 API Key" : "尚未保存 API Key", "muted");
+      apiKeyStatus.setId("apiKeyStatus");
+      Button saveApiKey = new Button("保存");
+      saveApiKey.setId("saveApiKeyButton");
+      Button deleteApiKey = new Button("删除");
+      deleteApiKey.setId("deleteApiKeyButton");
+      deleteApiKey.setDisable(!apiKeyStore.hasSavedKey());
+      saveApiKey.setOnAction(event -> {
+        if (apiKeyField.getText().isBlank()) {
+          apiKeyStatus.setText("请输入 API Key 后再保存");
+          return;
+        }
+        try {
+          apiKeyStore.save(apiKeyField.getText());
+          apiKeyField.clear();
+          apiKeyStatus.setText("已保存 API Key，新翻译请求立即使用");
+          deleteApiKey.setDisable(false);
+          clearTranslationError();
+        } catch (RuntimeException error) {
+          apiKeyStatus.setText("保存失败，请重试");
+        }
+      });
+      deleteApiKey.setOnAction(event -> {
+        try {
+          apiKeyStore.delete();
+          apiKeyField.clear();
+          apiKeyStatus.setText("已删除 API Key");
+          deleteApiKey.setDisable(true);
+          showTranslationError("请先在设置中保存 DeepSeek API Key");
+        } catch (RuntimeException error) {
+          apiKeyStatus.setText("删除失败，请重试");
+        }
+      });
+      HBox apiKeyButtons = new HBox(8, saveApiKey, deleteApiKey);
+      VBox apiKeySetting = new VBox(10,
+          label("DeepSeek API Key", "setting-label"), apiKeyField,
+          label("密钥仅加密保存在当前 Windows 用户配置中", "muted"),
+          apiKeyButtons, apiKeyStatus);
       HBox heading = new HBox(12, WindowIcon.create("settings", 26), label("外观设置", "utility-title"));
       heading.setAlignment(Pos.CENTER_LEFT);
       VBox content = new VBox(20, heading,
@@ -309,6 +373,7 @@ public class FloatingViewController {
           settingRow("动态效果", "键鼠轻反馈与咖啡热气", motionToggle), new Separator(),
           windowSizeSetting, new Separator(),
           new VBox(14, sizeHeader, sliderRow), new Separator(),
+          apiKeySetting, new Separator(),
           label("更改立即生效，并自动保存", "muted"));
       settingsStage = appearanceStage(content);
     }
@@ -387,7 +452,12 @@ public class FloatingViewController {
       stage.setY(event.getScreenY() - offset[1]);
     });
     content.getStyleClass().add("settings-content");
-    VBox panel = new VBox(header, content);
+    ScrollPane settingsScroll = new ScrollPane(content);
+    settingsScroll.getStyleClass().add("settings-scroll");
+    settingsScroll.setFitToWidth(true);
+    settingsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+    settingsScroll.setMaxHeight(610);
+    VBox panel = new VBox(header, settingsScroll);
     panel.getStyleClass().add("floating-window");
     VBox shell = new VBox(companion, panel);
     shell.setPrefWidth(448);

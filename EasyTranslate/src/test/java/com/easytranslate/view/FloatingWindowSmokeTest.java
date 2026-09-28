@@ -1,5 +1,6 @@
 package com.easytranslate.view;
 
+import com.easytranslate.config.ApiKeyStore;
 import com.easytranslate.model.Translation;
 import com.easytranslate.viewmodel.FloatingViewModel;
 import com.easytranslate.service.hotkey.InputActivityBuffer;
@@ -82,6 +83,17 @@ public class FloatingWindowSmokeTest extends Application {
   private void settings() {
     Stage settings = find("EasyTranslate · 设置");
     check(settings.isShowing(), "settings opens");
+    PasswordField apiKeyField = (PasswordField) settings.getScene().lookup("#apiKeyField");
+    Button saveApiKey = (Button) settings.getScene().lookup("#saveApiKeyButton");
+    Button deleteApiKey = (Button) settings.getScene().lookup("#deleteApiKeyButton");
+    ApiKeyStore keyStore = new ApiKeyStore(preferences);
+    check(!keyStore.hasSavedKey() && deleteApiKey.isDisabled(), "API key starts unset");
+    apiKeyField.setText("test-only-key");
+    saveApiKey.fire();
+    check(keyStore.load().orElseThrow().equals("test-only-key"), "API key saved and readable");
+    check(apiKeyField.getText().isEmpty() && !deleteApiKey.isDisabled(), "API key field cleared after save");
+    deleteApiKey.fire();
+    check(!keyStore.hasSavedKey() && deleteApiKey.isDisabled(), "API key deleted");
     ToggleButton large = (ToggleButton) settings.getScene().lookup("#windowSizeLarge");
     check(large.isSelected(), "large default selected");
     large.fire();

@@ -1,6 +1,7 @@
 package com.easytranslate.service.translation;
 
 import com.easytranslate.model.Translation;
+import com.easytranslate.config.ApiKeyStore;
 
 import java.io.IOException;
 import java.net.URI;
@@ -9,6 +10,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Objects;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,21 +22,19 @@ public class DeepSeekTranslationService implements TranslationService
   private final HttpClient client = HttpClient.newBuilder().connectTimeout(
       Duration.ofSeconds(5)).build();
   private final ObjectMapper mapper = new ObjectMapper();
-  private final String apiKey;
+  private final ApiKeyStore apiKeyStore;
 
-  public DeepSeekTranslationService()
+  public DeepSeekTranslationService(ApiKeyStore apiKeyStore)
   {
-    apiKey = System.getenv("EASYTRANSLATE_API_KEY");
-    if(apiKey == null || apiKey.isBlank())
-    {
-      throw new IllegalArgumentException("未设置apiKey");
-    }
+    this.apiKeyStore = Objects.requireNonNull(apiKeyStore);
   }
   @Override
   public Translation translate(String sourceText){
     if(sourceText == null || sourceText.isBlank()){
       throw new IllegalArgumentException("待翻译文本不能为空");
     }
+    String apiKey = apiKeyStore.load().orElseThrow(() ->
+        new IllegalStateException("请先在设置中保存 DeepSeek API Key"));
     try{
       ObjectNode body = mapper.createObjectNode();
       //使用deepseek-flash模型
