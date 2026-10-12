@@ -4,6 +4,10 @@ import com.easytranslate.config.ApiKeyStore;
 import com.easytranslate.model.Translation;
 import com.easytranslate.viewmodel.FloatingViewModel;
 import com.easytranslate.service.hotkey.InputActivityBuffer;
+import com.easytranslate.service.selection.SelectionResult;
+import com.easytranslate.usecase.TranslateSelectionUseCase;
+import com.easytranslate.usecase.LatestTranslationCoordinator;
+import java.util.ArrayDeque;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
 import javafx.application.Platform;
@@ -240,6 +244,38 @@ public class FloatingWindowSmokeTest extends Application {
 
   private void finishChecks() {
     check(controller.nativeMotionRunning(), "native hooks restart after reenable");
+    var workers = new ArrayDeque<Runnable>();
+    var selections = new ArrayDeque<>(java.util.List.of("A", "B", "C"));
+    var useCase = new TranslateSelectionUseCase(
+        () -> SelectionResult.found(selections.remove()),
+        source -> {
+          if (source.equals("A")) throw new IllegalStateException("fake old failure");
+          return new Translation(source, "translated-" + source);
+        }, workers::add);
+    var coordinator = new LatestTranslationCoordinator(useCase, Platform::runLater,
+        translation -> { model.showTranslation(translation); controller.clearTranslationError(); },
+        error -> controller.showTranslationError("fake service failure"));
+    coordinator.trigger();
+    workers.remove().run(); // Old failure is queued in Platform.runLater.
+    coordinator.trigger();
+    workers.remove().run(); // New success is queued before the FX thread can consume either callback.
+    later(() -> {
+      check(Platform.isFxApplicationThread(), "coordinator delivery on FX thread");
+      check(((Label) root.lookup("#sourceLabel")).getText().equals("B"), "latest source bound");
+      check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-B"), "latest translation bound");
+      check(((Label) root.lookup("#statusLabel")).getText().equals("翻译结果"), "stale queued failure ignored");
+      coordinator.trigger();
+      workers.remove().run();
+      coordinator.close(); // Close before queued C result reaches the real FX queue.
+      later(() -> {
+        check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-B"), "closed coordinator cannot change bound text");
+        check(((Label) root.lookup("#statusLabel")).getText().equals("翻译结果"), "closed coordinator cannot change status");
+        finishPreview();
+      });
+    });
+  }
+
+  private void finishPreview() {
     Stage settings = find("EasyTranslate · 设置");
     System.out.println("UI_SMOKE_PASSED: " + checks + " checks");
       if (!getParameters().getRaw().contains("--preview")) stage.close();

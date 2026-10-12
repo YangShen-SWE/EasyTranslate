@@ -4,6 +4,8 @@ import com.easytranslate.config.ApiKeyStore;
 import com.easytranslate.service.hotkey.GlobalHotkeyService;
 import com.easytranslate.service.translation.DeepSeekTranslationService;
 import com.easytranslate.usecase.TranslateSelectionUseCase;
+import com.easytranslate.usecase.LatestTranslationCoordinator;
+import javafx.stage.WindowEvent;
 import com.easytranslate.service.selection.WindowsSelectedTextService;
 import com.easytranslate.service.translation.MockTranslationService;
 import com.easytranslate.view.FloatingViewController;
@@ -29,6 +31,7 @@ import java.io.IOException;
 public class EasyTranslateApplication extends Application
 {
   private GlobalHotkeyService tabObserver;
+  private LatestTranslationCoordinator translationCoordinator;
   @Override
   public void start(Stage stage) throws IOException {
 
@@ -70,26 +73,24 @@ public class EasyTranslateApplication extends Application
         new DeepSeekTranslationService(apiKeyStore)
     );
 
+    translationCoordinator = new LatestTranslationCoordinator(
+        translateSelection, Platform::runLater,
+        translation -> {
+          viewModel.showTranslation(translation);
+          controller.clearTranslationError();
+        },
+        error -> {
+          Throwable cause = error;
+          while (cause.getCause() != null) cause = cause.getCause();
+          String message = cause.getMessage();
+          controller.showTranslationError(message != null && message.startsWith("请先在设置中保存")
+              ? message : "翻译失败，请检查网络或 API Key");
+        });
+    // Invalidate as soon as the main window hides, before Application.stop or a queued UI callback.
+    stage.addEventHandler(WindowEvent.WINDOW_HIDING, event -> translationCoordinator.close());
     controller.enableGlobalInput();
     tabObserver = new WindowsTabObserverService();
-    tabObserver.start(() ->
-        translateSelection.execute().whenComplete((maybeTranslation, error) ->
-            Platform.runLater(() -> {
-              if (error != null) {
-                Throwable cause = error;
-                while (cause.getCause() != null) cause = cause.getCause();
-                String message = cause.getMessage();
-                controller.showTranslationError(message != null && message.startsWith("请先在设置中保存")
-                    ? message : "翻译失败，请检查网络或 API Key");
-              } else {
-                maybeTranslation.ifPresent(translation -> {
-                  viewModel.showTranslation(translation);
-                  controller.clearTranslationError();
-                });
-              }
-            })
-        )
-    );
+    tabObserver.start(translationCoordinator::trigger);
 //    SelectedTextService selectionService = new WindowsSelectedTextService();
 //    tabObserver.start(() -> {
 //      SelectionResult result = selectionService.getSelectedText();
@@ -102,6 +103,7 @@ public class EasyTranslateApplication extends Application
   }
   @Override
   public void stop(){
+    if (translationCoordinator != null) translationCoordinator.close();
     if(tabObserver != null){
       tabObserver.close();
     }
