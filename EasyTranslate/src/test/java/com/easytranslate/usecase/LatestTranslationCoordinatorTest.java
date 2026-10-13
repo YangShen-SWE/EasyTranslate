@@ -198,15 +198,128 @@ class LatestTranslationCoordinatorTest {
       f.ui.runAll();
       assertEquals(newer.status() == SelectionResult.Status.Found
           ? List.of(translated("B")) : List.of(), f.translations);
+      assertEquals(newer.status() == SelectionResult.Status.Found
+          ? List.of(TranslationOperation.READING, TranslationOperation.TRANSLATING, TranslationOperation.SUCCEEDED)
+          : List.of(TranslationOperation.READING, newer.status() == SelectionResult.Status.None
+              ? TranslationOperation.NO_SELECTION : TranslationOperation.UNREADABLE), f.operations);
     } finally {
       gate.release.countDown();
       oldWorker.get(WAIT_SECONDS, TimeUnit.SECONDS);
     }
+    List<TranslationOperation> beforeOldCompletion = List.copyOf(f.operations);
     f.ui.runAll();
+    assertEquals(beforeOldCompletion, f.operations, "old completion cannot change the latest operation");
     assertEquals(newer.status() == SelectionResult.Status.Found
         ? List.of(translated("B")) : List.of(), f.translations);
     assertEquals(newer.status() == SelectionResult.Status.Found ? 2 : 1, f.translationCalls.get());
     assertTrue(f.failures.isEmpty());
+  }
+
+  @Test
+  void readingTranslatingAndSuccessAreDispatchedInOrderOnlyOnUi() {
+    Fixture f = new Fixture(SelectionResult.found("B"));
+    f.reply.set(source -> {
+      f.ui.runAll(); // Service is executing, not yet completed.
+      assertEquals(List.of(TranslationOperation.READING, TranslationOperation.TRANSLATING), f.operations);
+      return translated(source);
+    });
+    f.coordinator.trigger();
+    assertTrue(f.operations.isEmpty());
+    f.ui.runAll();
+    assertEquals(List.of(TranslationOperation.READING), f.operations);
+    f.worker.runNext();
+    assertEquals(2, f.operations.size());
+    f.ui.runAll();
+    assertEquals(List.of(TranslationOperation.READING, TranslationOperation.TRANSLATING,
+        TranslationOperation.SUCCEEDED), f.operations);
+  }
+
+  @Test
+  void noneAndUnknownHaveDistinctTerminalStatesAndNeverTranslate() {
+    for (SelectionResult selection : List.of(SelectionResult.none(), SelectionResult.unknown())) {
+      Fixture f = new Fixture(selection);
+      f.coordinator.trigger();
+      f.worker.runAll();
+      f.ui.runAll();
+      assertEquals(List.of(TranslationOperation.READING,
+          selection.status() == SelectionResult.Status.None ? TranslationOperation.NO_SELECTION
+              : TranslationOperation.UNREADABLE), f.operations);
+      assertEquals(0, f.translationCalls.get());
+      assertTrue(f.translations.isEmpty());
+      assertTrue(f.failures.isEmpty());
+    }
+  }
+
+  @Test
+  void selectionFailureIsFailedRatherThanUnreadableOrSuccess() {
+    Fixture f = new Fixture(() -> { throw new IllegalStateException("fake selection failure"); });
+    f.coordinator.trigger();
+    f.worker.runAll();
+    f.ui.runAll();
+    assertEquals(List.of(TranslationOperation.READING, TranslationOperation.FAILED), f.operations);
+    assertEquals(1, f.failures.size());
+    assertEquals(0, f.translationCalls.get());
+  }
+
+  @Test
+  void serviceFailureHasReadingTranslatingFailedSequence() {
+    Fixture f = new Fixture(SelectionResult.found("A"));
+    f.reply.set(source -> { throw new IllegalStateException("fake service failure"); });
+    f.coordinator.trigger();
+    f.worker.runAll();
+    f.ui.runAll();
+    assertEquals(List.of(TranslationOperation.READING, TranslationOperation.TRANSLATING,
+        TranslationOperation.FAILED), f.operations);
+    assertEquals(1, f.failures.size());
+    assertTrue(f.translations.isEmpty());
+  }
+
+  @Test
+  void supersededQueuedProgressAndEmptyTerminalNeverReachUi() {
+    for (SelectionResult old : List.of(SelectionResult.found("A"), SelectionResult.none(),
+        SelectionResult.unknown())) {
+      Fixture f = new Fixture(old, SelectionResult.found("B"));
+      f.coordinator.trigger();
+      f.worker.runNext(); // Every A callback is already queued.
+      f.coordinator.trigger();
+      f.ui.runAll();
+      assertEquals(List.of(TranslationOperation.READING), f.operations);
+      f.worker.runNext();
+      f.ui.runAll();
+      assertEquals(List.of(TranslationOperation.READING, TranslationOperation.TRANSLATING,
+          TranslationOperation.SUCCEEDED), f.operations);
+      assertEquals(List.of(translated("B")), f.translations);
+    }
+  }
+
+  @Test
+  void closeDropsAllQueuedStatesAsWellAsResults() {
+    for (SelectionResult selection : List.of(SelectionResult.found("A"), SelectionResult.none(),
+        SelectionResult.unknown())) {
+      Fixture f = new Fixture(selection);
+      f.coordinator.trigger();
+      f.worker.runAll();
+      f.coordinator.close();
+      f.ui.runAll();
+      assertTrue(f.operations.isEmpty());
+      assertTrue(f.translations.isEmpty());
+    }
+  }
+
+  @Test
+  void workerRejectionEndsReadingWithFailure() {
+    QueuedExecutor ui = new QueuedExecutor();
+    List<TranslationOperation> states = new ArrayList<>();
+    List<Throwable> errors = new ArrayList<>();
+    TranslateSelectionUseCase useCase = new TranslateSelectionUseCase(SelectionResult::none,
+        LatestTranslationCoordinatorTest::translated,
+        task -> { throw new java.util.concurrent.RejectedExecutionException("fake stopped worker"); });
+    var coordinator = new LatestTranslationCoordinator(useCase, ui,
+        result -> fail("must not translate"), errors::add, states::add);
+    coordinator.trigger();
+    ui.runAll();
+    assertEquals(List.of(TranslationOperation.READING, TranslationOperation.FAILED), states);
+    assertEquals(1, errors.size());
   }
 
   private static Translation translated(String source) {
@@ -245,6 +358,7 @@ class LatestTranslationCoordinatorTest {
         LatestTranslationCoordinatorTest::translated);
     final List<Translation> translations = new ArrayList<>();
     final List<Throwable> failures = new ArrayList<>();
+    final List<TranslationOperation> operations = new ArrayList<>();
     final LatestTranslationCoordinator coordinator;
 
     Fixture(SelectionResult... selections) {
@@ -259,7 +373,8 @@ class LatestTranslationCoordinatorTest {
         translationCalls.incrementAndGet();
         return reply.get().apply(source);
       }, worker);
-      coordinator = new LatestTranslationCoordinator(useCase, ui, translations::add, failures::add);
+      coordinator = new LatestTranslationCoordinator(useCase, ui, translations::add, failures::add,
+          operations::add);
     }
   }
 

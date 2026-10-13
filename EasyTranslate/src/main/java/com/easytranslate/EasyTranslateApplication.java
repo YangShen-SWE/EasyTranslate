@@ -85,7 +85,7 @@ public class EasyTranslateApplication extends Application
           String message = cause.getMessage();
           controller.showTranslationError(message != null && message.startsWith("请先在设置中保存")
               ? message : "翻译失败，请检查网络或 API Key");
-        });
+        }, viewModel::showOperation);
     // Invalidate as soon as the main window hides, before Application.stop or a queued UI callback.
     stage.addEventHandler(WindowEvent.WINDOW_HIDING, event -> translationCoordinator.close());
     controller.enableGlobalInput();

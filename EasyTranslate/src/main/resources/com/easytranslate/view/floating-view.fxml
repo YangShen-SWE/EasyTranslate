@@ -52,8 +52,8 @@
         <Separator styleClass="footer-divider"/>
         <HBox alignment="CENTER_LEFT" spacing="8" styleClass="footer">
             <Region fx:id="statusDot" styleClass="status-dot"/>
-            <Label fx:id="statusLabel" text="等待划词" styleClass="status-label"/>
-            <Region HBox.hgrow="ALWAYS"/>
+            <Label fx:id="statusLabel" text="等待划词" wrapText="true" minWidth="0"
+                   maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="status-label"/>
             <Button fx:id="vocabularyButton" text="单词本" onAction="#onVocabulary"
                     focusTraversable="false" styleClass="text-button"/>
             <Separator orientation="VERTICAL" prefHeight="16" maxHeight="16"/>

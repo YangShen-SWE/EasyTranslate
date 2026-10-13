@@ -7,6 +7,7 @@ import com.easytranslate.service.hotkey.InputActivityBuffer;
 import com.easytranslate.service.selection.SelectionResult;
 import com.easytranslate.usecase.TranslateSelectionUseCase;
 import com.easytranslate.usecase.LatestTranslationCoordinator;
+import com.easytranslate.usecase.TranslationOperation;
 import java.util.ArrayDeque;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
@@ -65,7 +66,7 @@ public class FloatingWindowSmokeTest extends Application {
   private void shortTranslation() {
     check(!((Button) root.lookup("#copyButton")).isDisabled(), "copy available for translation");
     check(((Label) root.lookup("#translatedLabel")).getText().equals("一步一步来。"), "Unicode binding");
-    check(((Label) root.lookup("#statusLabel")).getText().equals("翻译结果"), "translation status");
+    check(((Label) root.lookup("#statusLabel")).getText().equals("翻译成功"), "translation status");
     model.showTranslation(new Translation("A long sentence for checking wrapping and scrolling. ".repeat(30),
         "用于检查长译文换行、滚动以及窗口高度上限。".repeat(30)));
     later(this::longTranslation);
@@ -254,7 +255,7 @@ public class FloatingWindowSmokeTest extends Application {
         }, workers::add);
     var coordinator = new LatestTranslationCoordinator(useCase, Platform::runLater,
         translation -> { model.showTranslation(translation); controller.clearTranslationError(); },
-        error -> controller.showTranslationError("fake service failure"));
+        error -> controller.showTranslationError("fake service failure"), model::showOperation);
     coordinator.trigger();
     workers.remove().run(); // Old failure is queued in Platform.runLater.
     coordinator.trigger();
@@ -263,17 +264,82 @@ public class FloatingWindowSmokeTest extends Application {
       check(Platform.isFxApplicationThread(), "coordinator delivery on FX thread");
       check(((Label) root.lookup("#sourceLabel")).getText().equals("B"), "latest source bound");
       check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-B"), "latest translation bound");
-      check(((Label) root.lookup("#statusLabel")).getText().equals("翻译结果"), "stale queued failure ignored");
+      check(((Label) root.lookup("#statusLabel")).getText().equals("翻译成功"), "stale queued failure ignored");
       coordinator.trigger();
       workers.remove().run();
       coordinator.close(); // Close before queued C result reaches the real FX queue.
       later(() -> {
         check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-B"), "closed coordinator cannot change bound text");
-        check(((Label) root.lookup("#statusLabel")).getText().equals("翻译结果"), "closed coordinator cannot change status");
-        finishPreview();
+        check(((Label) root.lookup("#statusLabel")).getText().equals("翻译成功"), "closed coordinator cannot change status");
+        operationChecks();
       });
     });
   }
+
+  private void operationChecks() {
+    var states = new TranslationOperation[]{TranslationOperation.READING, TranslationOperation.TRANSLATING,
+        TranslationOperation.NO_SELECTION, TranslationOperation.UNREADABLE, TranslationOperation.FAILED};
+    var messages = new String[]{"正在读取选区", "正在翻译", "未选中文字，请选中后再按 Tab",
+        "无法读取选区，请尝试其他应用", "翻译失败，请检查网络或 API Key"};
+    for (int i = 0; i < states.length; i++) {
+      model.showOperation(states[i]);
+      check(status().equals(messages[i] + " · 上次结果"), "operation text and retained marker: " + states[i]);
+      check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-B"), "retained translation: " + states[i]);
+      check(!root.lookup("#statusDot").getPseudoClassStates().contains(javafx.css.PseudoClass.getPseudoClass("ready")),
+          "old translation is not ready success: " + states[i]);
+    }
+    ((ToggleButton) find("EasyTranslate · 设置").getScene().lookup("#windowSizeSmall")).fire();
+    later(() -> {
+      Label label = (Label) root.lookup("#statusLabel");
+      check(Math.abs(stage.getWidth() - 420) < 2, "long status does not enlarge small window");
+      check(label.getHeight() + 1 >= label.prefHeight(label.getWidth()), "long status wraps without clipped lines");
+      var button = root.lookup("#settingsButton");
+      check(button.localToScene(button.getBoundsInLocal()).getMaxX() <= stage.getWidth(), "small footer keeps settings visible");
+      ((ToggleButton) find("EasyTranslate · 设置").getScene().lookup("#windowSizeLarge")).fire();
+      later(this::coordinatorOperationChecks);
+    });
+  }
+
+  private void coordinatorOperationChecks() {
+    var workers = new ArrayDeque<Runnable>();
+    var selections = new ArrayDeque<>(java.util.List.of(SelectionResult.none(), SelectionResult.unknown(),
+        SelectionResult.found("fail"), SelectionResult.found("B")));
+    var useCase = new TranslateSelectionUseCase(selections::remove, source -> {
+      if (source.equals("fail")) throw new IllegalStateException("fake current failure");
+      return new Translation(source, "translated-" + source);
+    }, workers::add);
+    var coordinator = new LatestTranslationCoordinator(useCase, Platform::runLater,
+        model::showTranslation, error -> controller.showTranslationError("fake current failure"), model::showOperation);
+    coordinator.trigger();
+    later(() -> {
+      check(status().equals("正在读取选区 · 上次结果"), "real queue shows reading before worker");
+      workers.remove().run();
+      later(() -> {
+        check(status().equals("未选中文字，请选中后再按 Tab · 上次结果"), "real queue shows no selection");
+        coordinator.trigger(); workers.remove().run();
+        later(() -> {
+          check(status().equals("无法读取选区，请尝试其他应用 · 上次结果"), "real queue distinguishes unreadable");
+          coordinator.trigger(); workers.remove().run();
+          later(() -> {
+            check(status().equals("fake current failure · 上次结果"), "real queue preserves mapped failure");
+            controller.clearTranslationError();
+            check(status().equals("fake current failure · 上次结果"), "clearing message cannot invent success");
+            coordinator.trigger(); workers.remove().run();
+            later(() -> {
+              check(status().equals("翻译成功"), "identical new success clears stale marker and error");
+              check(root.lookup("#statusDot").getPseudoClassStates().contains(javafx.css.PseudoClass.getPseudoClass("ready")),
+                  "success restores ready dot");
+              check(!((Button) root.lookup("#copyButton")).isDisabled(), "retained and new result remain copyable");
+              coordinator.close();
+              finishPreview();
+            });
+          });
+        });
+      });
+    });
+  }
+
+  private String status() { return ((Label) root.lookup("#statusLabel")).getText(); }
 
   private void finishPreview() {
     Stage settings = find("EasyTranslate · 设置");

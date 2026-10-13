@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 
 public class TranslateSelectionUseCase
 {
@@ -35,15 +36,30 @@ public class TranslateSelectionUseCase
 
   /** The same trigger guard follows selection and service work; final UI gating belongs to the coordinator. */
   public CompletableFuture<Optional<Translation>> execute(BooleanSupplier isCurrent) {
+    return execute(isCurrent, operation -> {});
+  }
+
+  /** Progress runs on the worker; callers must gate and dispatch it before touching the UI. */
+  public CompletableFuture<Optional<Translation>> execute(BooleanSupplier isCurrent,
+      Consumer<TranslationOperation> onProgress) {
     Objects.requireNonNull(isCurrent, "isCurrent");
+    Objects.requireNonNull(onProgress, "onProgress");
     return CompletableFuture.supplyAsync(() -> {
       if (!isCurrent.getAsBoolean()) return Optional.empty();
       SelectionResult result = selectionService.getSelectedText();
-
-      if (!isCurrent.getAsBoolean() || result.status() != SelectionResult.Status.Found) {
-        return Optional.empty();
+      if (!isCurrent.getAsBoolean()) return Optional.empty();
+      switch (result.status()) {
+        case None -> {
+          onProgress.accept(TranslationOperation.NO_SELECTION);
+          return Optional.empty();
+        }
+        case Unknown -> {
+          onProgress.accept(TranslationOperation.UNREADABLE);
+          return Optional.empty();
+        }
+        case Found -> onProgress.accept(TranslationOperation.TRANSLATING);
       }
-
+      if (!isCurrent.getAsBoolean()) return Optional.empty();
       return Optional.of(translationService.translate(result.text()));
     }, worker);
   }

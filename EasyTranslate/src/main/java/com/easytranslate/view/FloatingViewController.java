@@ -2,6 +2,7 @@ package com.easytranslate.view;
 
 import com.easytranslate.config.ApiKeyStore;
 import com.easytranslate.viewmodel.FloatingViewModel;
+import com.easytranslate.usecase.TranslationOperation;
 import javafx.animation.PauseTransition;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
@@ -74,7 +75,6 @@ public class FloatingViewController {
   private boolean resizeQueued;
   private int fontSize;
   private WindowSize windowSize;
-  private String translationError;
 
   public FloatingViewController() {
     this(Preferences.userNodeForPackage(FloatingViewController.class).node("appearance"),
@@ -179,25 +179,32 @@ public class FloatingViewController {
       queueResize();
     });
     viewModel.sourceTextProperty().addListener((observable, before, after) -> queueResize());
+    viewModel.statusTextProperty().addListener((observable, before, after) -> {
+      copyFeedback.stop();
+      refreshStatus();
+    });
+    viewModel.operationProperty().addListener((observable, before, after) -> {
+      copyFeedback.stop();
+      refreshStatus();
+    });
     refreshStatus();
     queueResize();
   }
 
   private void refreshStatus() {
-    boolean hasTranslation = viewModel != null && !viewModel.translatedTextProperty().get().isEmpty();
-    statusLabel.setText(translationError != null ? translationError :
-        hasTranslation ? "翻译结果" : "等待划词");
+    statusLabel.setText(viewModel == null ? "等待划词" : viewModel.statusTextProperty().get());
     statusDot.pseudoClassStateChanged(PseudoClass.getPseudoClass("ready"),
-        translationError == null && hasTranslation);
+        viewModel != null && viewModel.operationProperty().get() == TranslationOperation.SUCCEEDED);
+    queueResize();
   }
 
   public void showTranslationError(String message) {
-    translationError = message;
+    if (viewModel != null) viewModel.showFailure(message);
     refreshStatus();
   }
 
   public void clearTranslationError() {
-    translationError = null;
+    // Success is assigned by showTranslation, not by clearing a presentation message.
     refreshStatus();
   }
 
@@ -239,7 +246,9 @@ public class FloatingViewController {
     ClipboardContent content = new ClipboardContent();
     content.putString(viewModel.translatedTextProperty().get());
     if (Clipboard.getSystemClipboard().setContent(content)) {
-      statusLabel.setText("译文已复制");
+      // Copy feedback must not disguise a pending/failed operation or a retained result.
+      statusLabel.setText("译文已复制 · " + viewModel.statusTextProperty().get());
+      queueResize();
       copyFeedback.playFromStart();
     }
   }
