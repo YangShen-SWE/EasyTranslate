@@ -8,6 +8,7 @@ import com.easytranslate.service.selection.SelectionResult;
 import com.easytranslate.usecase.TranslateSelectionUseCase;
 import com.easytranslate.usecase.LatestTranslationCoordinator;
 import com.easytranslate.usecase.TranslationOperation;
+import com.easytranslate.service.translation.TranslationFailure;
 import java.util.ArrayDeque;
 import javafx.animation.PauseTransition;
 import javafx.application.Application;
@@ -331,9 +332,46 @@ public class FloatingWindowSmokeTest extends Application {
                   "success restores ready dot");
               check(!((Button) root.lookup("#copyButton")).isDisabled(), "retained and new result remain copyable");
               coordinator.close();
-              finishPreview();
+              classifiedFailureChecks();
             });
           });
+        });
+      });
+    });
+  }
+
+  private void classifiedFailureChecks() {
+    for (var kind : TranslationFailure.Kind.values()) {
+      var failure = new TranslationFailure(kind, new java.io.IOException("synthetic diagnostic"));
+      controller.showTranslationError(TranslationFailure.userMessage(new java.util.concurrent.CompletionException(failure)));
+      check(status().equals(kind.userMessage() + " · 上次结果"), "safe classified message: " + kind);
+      check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-B"), "classified failure retains result: " + kind);
+      check(!root.lookup("#statusDot").getPseudoClassStates().contains(javafx.css.PseudoClass.getPseudoClass("ready")),
+          "classified failure cannot show success: " + kind);
+    }
+    controller.showTranslationError(TranslationFailure.Kind.INVALID_RESPONSE.userMessage());
+    ((ToggleButton) find("EasyTranslate · 设置").getScene().lookup("#windowSizeSmall")).fire();
+    later(() -> {
+      Label label = (Label) root.lookup("#statusLabel");
+      check(Math.abs(stage.getWidth() - 420) < 2, "classified advice keeps small window width");
+      check(label.getHeight() + 1 >= label.prefHeight(label.getWidth()), "classified advice wraps without clipping");
+      var workers = new ArrayDeque<Runnable>();
+      var selections = new ArrayDeque<>(java.util.List.of(SelectionResult.found("fail"), SelectionResult.found("B")));
+      var useCase = new TranslateSelectionUseCase(selections::remove, source -> {
+        if (source.equals("fail")) throw new TranslationFailure(TranslationFailure.Kind.TIMEOUT,
+            new java.net.http.HttpTimeoutException("synthetic timeout"));
+        return new Translation(source, "translated-" + source);
+      }, workers::add);
+      var coordinator = new LatestTranslationCoordinator(useCase, Platform::runLater, model::showTranslation,
+          error -> controller.showTranslationError(TranslationFailure.userMessage(error)), model::showOperation);
+      coordinator.trigger(); workers.remove().run();
+      later(() -> {
+        check(status().equals(TranslationFailure.Kind.TIMEOUT.userMessage() + " · 上次结果"), "real FX queue preserves typed timeout");
+        coordinator.trigger(); workers.remove().run();
+        later(() -> {
+          check(status().equals("翻译成功"), "manual recovery clears classified failure");
+          coordinator.close();
+          finishPreview();
         });
       });
     });

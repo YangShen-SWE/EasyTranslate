@@ -3,6 +3,7 @@ package com.easytranslate.usecase;
 import com.easytranslate.model.Translation;
 import com.easytranslate.service.selection.SelectedTextService;
 import com.easytranslate.service.selection.SelectionResult;
+import com.easytranslate.service.translation.TranslationFailure;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayDeque;
@@ -320,6 +321,38 @@ class LatestTranslationCoordinatorTest {
     ui.runAll();
     assertEquals(List.of(TranslationOperation.READING, TranslationOperation.FAILED), states);
     assertEquals(1, errors.size());
+  }
+
+  @Test
+  void currentClassifiedFailureSurvivesAsyncWrapperAndNextSuccessRecovers() {
+    Fixture f = new Fixture(SelectionResult.found("A"), SelectionResult.found("B"));
+    var failure = new TranslationFailure(
+        TranslationFailure.Kind.RATE_LIMIT,
+        new java.io.IOException("synthetic diagnostic"));
+    f.reply.set(source -> { if (source.equals("A")) throw failure; return translated(source); });
+    f.coordinator.trigger(); f.worker.runAll(); f.ui.runAll();
+    assertEquals(1, f.failures.size());
+    assertEquals(failure.getMessage(), TranslationFailure.userMessage(f.failures.get(0)));
+    assertEquals(TranslationOperation.FAILED, f.operations.getLast());
+    f.coordinator.trigger(); f.worker.runAll(); f.ui.runAll();
+    assertEquals(List.of(translated("B")), f.translations);
+    assertEquals(TranslationOperation.SUCCEEDED, f.operations.getLast());
+    assertEquals(1, f.failures.size());
+  }
+
+  @Test
+  void queuedClassifiedFailureCannotOverwriteNewerIntent() {
+    Fixture f = new Fixture(SelectionResult.found("A"), SelectionResult.found("B"));
+    f.reply.set(source -> {
+      if (source.equals("A")) throw new TranslationFailure(
+          TranslationFailure.Kind.AUTHENTICATION);
+      return translated(source);
+    });
+    f.coordinator.trigger(); f.worker.runAll();
+    f.coordinator.trigger(); f.worker.runAll(); f.ui.runAll();
+    assertTrue(f.failures.isEmpty());
+    assertEquals(List.of(translated("B")), f.translations);
+    assertEquals(TranslationOperation.SUCCEEDED, f.operations.getLast());
   }
 
   private static Translation translated(String source) {

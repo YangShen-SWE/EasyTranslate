@@ -4,13 +4,15 @@
 
 The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, or a real translation API. They use in-memory services through the existing interfaces. They do not prove that selection capture or real API requests work on a user's computer.
 
-核心JUnit测试使用 SelectedTextService / TranslationService 接口注入内存假服务，直接验证真实 TranslateSelectionUseCase 与 LatestTranslationCoordinator。不启动JavaFX工具包、全局监听、Windows UI Automation，不读取个人配置或密钥，也不联网调用翻译API。FloatingViewModelTest仅使用JavaFX属性，不启动窗口。D01建立测试基线，D02加入生产请求协调逻辑，D03扩展本次操作状态与保留结果标记；不能把历史基线范围当成当前范围。
+核心JUnit测试使用 SelectedTextService / TranslationService 接口注入内存假服务，直接验证真实 TranslateSelectionUseCase 与 LatestTranslationCoordinator。D04的DeepSeekTranslationServiceTest进一步在真实服务内注入假HTTP传输与假密钥提供器，验证请求构造、响应解析与错误分类，不创建真实HTTP客户端。不启动JavaFX工具包、全局监听、Windows UI Automation，不读取个人配置或密钥，也不联网调用翻译API。FloatingViewModelTest仅使用JavaFX属性，不启动窗口。D01建立测试基线，D02加入生产请求协调逻辑，D03扩展状态与保留标记，D04分类在线失败；不能把历史基线范围当成当前范围。
 
-- LatestTranslationCoordinatorTest：20个JUnit测试方法，使用真实协调器与用例，控制工作/UI队列及有上限闩锁。保留D02的13项逆序/旧失败/空选区/关闭回归；D03新增7项读取→翻译→成功顺序、None/Unknown不同终态、选区异常、服务失败、过时进度/终态、关闭后所有状态丢弃、工作执行器拒绝后的失败。A/B在途逆序测试同时验证旧回调不能覆盖新状态。没有把循环中的输入条数当成额外测试数。
+- DeepSeekTranslationServiceTest：17个JUnit方法，注入内存HttpResponse/传输及假密钥；覆盖文本/密钥前置、密钥读失败与非法请求头、成功请求契约、401/403、429、5xx及其他状态、网络/超时/中断、空内容、损坏JSON/尾随JSON、结构缺失/错误与非文本内容。计数验证每次服务调用至多一次send，下一次手动调用重新加载密钥并能恢复；不启动本地HTTP服务器或调用真实服务。
+- TranslationFailureTest：7个JUnit方法；本地文案互异、异步包装保留分类而非最深层诊断、未知异常安全回退、不信任原始消息前缀、null、过深包装有界回退及非法kind。
+- LatestTranslationCoordinatorTest：22个JUnit测试方法，使用真实协调器与用例，控制工作/UI队列及有上限闩锁。保留D02的13项逆序/旧失败/空选区/关闭回归与D03的7项状态回归；D04新增2项分类失败经Future包装保持恢复建议、下一次成功恢复，以及已排队旧分类失败不能覆盖新意图。A/B在途逆序测试同时验证旧回调不能覆盖新状态。没有把循环中的输入条数当成额外测试数。
 - TranslateSelectionUseCaseTest：Found只读取/翻译一次并传递文本，None/Unknown不调用翻译，读取/翻译异常保持失败，工作离开调用线程，读取未结束时execute仍返回Future。7个JUnit测试方法；使用有上限的Future/闩锁等待，不靠sleep碰运气。原execute()兼容入口仍默认异步，不注入直接执行器来伪称异步通过。
 - SelectionResultTest：Found去除首尾Unicode空白、保留内部空格/换行、拒绝空/空白及非法状态数据，None/Unknown不含文本。8个JUnit测试方法；部分方法包含多个输入断言，输入条数不当成额外测试数。
 - FloatingViewModelTest：7个JUnit方法，仅用JavaFX属性不启动工具包；验证初始等待、五类非成功状态、保留原文/译文且标上次结果、成功替换/清标记、相同译文再次成功、错误提示恢复以及非法参数不变更展示。
-- FloatingWindowSmokeTest：独立JavaFX main检查器，不是JUnit用例；D03实际89项检查，不能与42项核心JUnit测试数相加。
+- FloatingWindowSmokeTest：独立JavaFX main检查器，不是JUnit用例；D03历史89项，D04实际129项检查，不能与68项核心JUnit测试数相加。
 - NativeInputProbe：原生输入观察探针，不证明所有应用、组合键或输入法候选态均已通过。
 
 ## Run only affected tests / 只运行受影响测试
@@ -19,7 +21,7 @@ The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, 
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Java\jdk-25.0.4-full'
-./mvnw.cmd '-Dtest=LatestTranslationCoordinatorTest,TranslateSelectionUseCaseTest,SelectionResultTest,FloatingViewModelTest' test
+./mvnw.cmd '-Dtest=DeepSeekTranslationServiceTest,TranslationFailureTest,LatestTranslationCoordinatorTest,TranslateSelectionUseCaseTest,SelectionResultTest,FloatingViewModelTest' test
 ```
 
 只改选区结果契约时，可缩小为：
@@ -28,7 +30,7 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-25.0.4-full'
 ./mvnw.cmd '-Dtest=SelectionResultTest' test
 ```
 
-只改请求协调器时至少执行 LatestTranslationCoordinatorTest；改翻译用例时同时执行 TranslateSelectionUseCaseTest 与协调器测试；跨选区/用例/展示状态边界时运行上面的四类。D02历史执行28项：13+7+8；D03执行42项：20+7+8+7，失败/错误/跳过均为0。若只改展示模型，可定向FloatingViewModelTest；控制器或FXML同时变动仍需独立UI检查。
+只改请求协调器时至少执行 LatestTranslationCoordinatorTest；改翻译用例时同时执行 TranslateSelectionUseCaseTest 与协调器测试；跨选区/用例/展示状态边界时运行相关类。在线失败分类与应用UI回调映射同时变化时，运行上面的六类。D02历史28项：13+7+8；D03历史42项：20+7+8+7；D04实际68项：17+7+22+7+8+7，失败/错误/跳过均为0。若只改展示模型，可定向FloatingViewModelTest；控制器/FXML或应用错误回调接线变动仍需独立UI检查。
 
 协调器在Tab通知进入trigger时分配意图编号，编号闭包贯穿读取、服务与UI发布；即使新意图没有有效文本，也先使旧意图失效。工作开始前及选区读取结束后检查当前编号；UI真正执行时在同一锁内复查编号并提交成功/错误。主窗口WINDOW_HIDING和Application.stop都关闭协调器。旧execute()入口保持兼容，但应用入口应使用协调器，不能绕过它再直接发布结果。
 
@@ -45,6 +47,7 @@ pom显式使用Surefire 3.5.4运行JUnit 5，测试JVM使用classpath，避免�
 - 修改FXML、控制器、窗口或焦点行为时，再按需运行 scripts/check-window.ps1 -JavaHome <实际JDK路径>，并单独记录UI结果。D02因应用入口/UI回调接线改变，新增6项协调器与真实FX队列/文本绑定检查并执行现有窗口检查，输出UI_SMOKE_PASSED: 63 checks（独立main，不计入28项JUnit）。
 - 本机直接执行.ps1被Windows执行策略拒绝时，不更改执行策略或添加Bypass。D02先直接执行脚本中相同的Maven test-compile / dependency:build-classpath生成target/ui-classpath.txt，再将其内容作为--module-path，按脚本同样的参数直接启动FloatingWindowSmokeTest；最终退出码0。脚本启动被拒绝不冒充脚本成功，也不把test-compile算JUnit。可复核启动参数见本版本说明。
 - D03改变展示模型、控制器与FXML状态栏，新增26项UI断言；相同Java入口实际输出UI_SMOKE_PASSED: 89 checks / 退出码0，覆盖真实队列状态、上次结果标记、错误恢复、相同译文再次成功、状态灯及小窗口换行/按钮可见。仅test-compile不能当UI通过，真实剪贴板复制未执行，相关反馈文本仅代码审查。不再次尝试已知被执行策略拒绝的.ps1，不使用Bypass。
+- D04应用错误回调使用TranslationFailure.userMessage；新增40项独立UI断言，同一Java入口实际输出UI_SMOKE_PASSED: 129 checks / 退出码0。覆盖12类本地建议/保留结果/非成功灯、420px小窗长建议换行、真实FX队列的超时分类与手动成功恢复。核心测试不证明真实HTTP栈、TLS、服务商状态或费用；本次无应用层自动重试，已在途HTTP仍未取消。
 - 修改共享配置/模块依赖/构建系统等横切链路时扩大关联回归；最后一天按累计diff回归关键路径，不要求每次无差别全量执行。
 - Maven 3.8.5在JDK25上可能给出Jansi native-access及Guava Unsafe弃用警告。记录它们，不据此谎报测试失败，也不随意给测试增加无关权限开关。
 

@@ -3,6 +3,7 @@ package com.easytranslate;
 import com.easytranslate.config.ApiKeyStore;
 import com.easytranslate.service.hotkey.GlobalHotkeyService;
 import com.easytranslate.service.translation.DeepSeekTranslationService;
+import com.easytranslate.service.translation.TranslationFailure;
 import com.easytranslate.usecase.TranslateSelectionUseCase;
 import com.easytranslate.usecase.LatestTranslationCoordinator;
 import javafx.stage.WindowEvent;
@@ -79,13 +80,8 @@ public class EasyTranslateApplication extends Application
           viewModel.showTranslation(translation);
           controller.clearTranslationError();
         },
-        error -> {
-          Throwable cause = error;
-          while (cause.getCause() != null) cause = cause.getCause();
-          String message = cause.getMessage();
-          controller.showTranslationError(message != null && message.startsWith("请先在设置中保存")
-              ? message : "翻译失败，请检查网络或 API Key");
-        }, viewModel::showOperation);
+        error -> controller.showTranslationError(TranslationFailure.userMessage(error)),
+        viewModel::showOperation);
     // Invalidate as soon as the main window hides, before Application.stop or a queued UI callback.
     stage.addEventHandler(WindowEvent.WINDOW_HIDING, event -> translationCoordinator.close());
     controller.enableGlobalInput();
