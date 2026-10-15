@@ -64,6 +64,8 @@ public class FloatingViewController {
 
   private final Preferences preferences;
   private final ApiKeyStore apiKeyStore;
+  private com.easytranslate.config.OnlineTranslationPolicy onlinePolicy;
+  private Runnable onOnlineChange = () -> {};
   private final BooleanProperty showSource = new SimpleBooleanProperty(true);
   private final BooleanProperty motionEnabled = new SimpleBooleanProperty(true);
   private CompanionMotion motion;
@@ -89,6 +91,14 @@ public class FloatingViewController {
   FloatingViewController(Preferences preferences, ApiKeyStore apiKeyStore) {
     this.preferences = preferences;
     this.apiKeyStore = apiKeyStore;
+    this.onlinePolicy = new com.easytranslate.config.OnlineTranslationPolicy(preferences.node("privacy"));
+  }
+
+  public void configureOnlineTranslation(com.easytranslate.config.OnlineTranslationPolicy policy,
+      Runnable onChange) {
+    if (settingsStage != null) throw new IllegalStateException("Configure before opening settings");
+    onlinePolicy = Objects.requireNonNull(policy, "policy");
+    onOnlineChange = Objects.requireNonNull(onChange, "onChange");
   }
 
   @FXML private void initialize() {
@@ -274,6 +284,33 @@ public class FloatingViewController {
 
   @FXML private void onSettings() {
     if (settingsStage == null) {
+      Label onlineNotice = label("在线翻译说明：开启后，按 Tab 读取的选区文本会通过网络发送给 DeepSeek（api.deepseek.com），并使用你的 API Key 调用服务，可能按服务商规则产生费用。不要上传密码、个人或机密内容。可拒绝并保持关闭；关闭会阻止后续请求并丢弃旧回调，但无法撤回已发送的文本或保证停止计费。", "muted");
+      onlineNotice.setId("onlineTranslationNotice");
+      onlineNotice.setWrapText(true);
+      CheckBox onlineToggle = new CheckBox("已阅读上述说明，同意上传并开启在线翻译");
+      onlineToggle.setId("onlineTranslationToggle");
+      onlineToggle.setWrapText(true);
+      onlineToggle.setSelected(onlinePolicy.permit().isAllowed());
+      Label onlineStatus = label(onlineToggle.isSelected() ? "在线翻译已开启" : "在线翻译已关闭（默认不上传）", "muted");
+      onlineStatus.setId("onlineTranslationStatus");
+      onlineStatus.setWrapText(true);
+      Button rejectOnline = new Button("拒绝并关闭在线翻译");
+      rejectOnline.setId("rejectOnlineTranslationButton");
+      java.util.function.Consumer<Boolean> chooseOnline = enable -> {
+        try {
+          onlinePolicy.choose(enable);
+          onlineStatus.setText(enable ? "已同意并保存：在线翻译开启，需重新触发" : "已拒绝并保存：在线翻译关闭");
+        } catch (RuntimeException error) {
+          onlineStatus.setText("保存失败，当前已关闭在线翻译，请重试");
+        } finally {
+          onlineToggle.setSelected(onlinePolicy.permit().isAllowed());
+          onOnlineChange.run();
+        }
+      };
+      onlineToggle.setOnAction(event -> chooseOnline.accept(onlineToggle.isSelected()));
+      rejectOnline.setOnAction(event -> chooseOnline.accept(false));
+      VBox onlineSetting = new VBox(10, label("在线翻译与隐私", "setting-label"),
+          onlineNotice, onlineToggle, rejectOnline, onlineStatus);
       CheckBox sourceToggle = appearanceSwitch("showSourceToggle", "显示原文");
       sourceToggle.selectedProperty().bindBidirectional(showSource);
       CheckBox alwaysOnTop = appearanceSwitch("alwaysOnTopToggle", "悬浮窗置顶");
@@ -375,7 +412,7 @@ public class FloatingViewController {
           apiKeyButtons, apiKeyStatus);
       HBox heading = new HBox(12, WindowIcon.create("settings", 26), label("外观设置", "utility-title"));
       heading.setAlignment(Pos.CENTER_LEFT);
-      VBox content = new VBox(20, heading,
+      VBox content = new VBox(20, heading, onlineSetting, new Separator(),
           settingRow("显示原文", "关闭后仅显示译文", sourceToggle), new Separator(),
           settingRow("悬浮窗置顶", "保持在其他窗口上方", alwaysOnTop), new Separator(),
           settingRow("桌面装饰", "显示小猫、花盆和咖啡杯", showDecorations), new Separator(),

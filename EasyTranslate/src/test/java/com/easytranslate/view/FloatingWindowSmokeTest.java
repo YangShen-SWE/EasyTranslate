@@ -33,6 +33,8 @@ public class FloatingWindowSmokeTest extends Application {
   private Stage stage;
   private FloatingViewModel model;
   private FloatingViewController controller;
+  private com.easytranslate.config.OnlineTranslationPolicy onlinePolicy;
+  private LatestTranslationCoordinator onlineCoordinator;
   private int checks;
   private double initialWidth, initialX, initialY;
 
@@ -43,6 +45,10 @@ public class FloatingWindowSmokeTest extends Application {
     loader.setControllerFactory(type -> new FloatingViewController(preferences));
     root = loader.load();
     controller = loader.getController();
+    onlinePolicy = new com.easytranslate.config.OnlineTranslationPolicy(preferences.node("privacy"));
+    controller.configureOnlineTranslation(onlinePolicy, () -> {
+      if (onlineCoordinator != null) onlineCoordinator.refreshOnlineAccess();
+    });
     model = new FloatingViewModel();
     controller.setViewModel(model);
     Scene scene = new Scene(root);
@@ -371,7 +377,58 @@ public class FloatingWindowSmokeTest extends Application {
         later(() -> {
           check(status().equals("翻译成功"), "manual recovery clears classified failure");
           coordinator.close();
-          finishPreview();
+          onlineConsentChecks();
+        });
+      });
+    });
+  }
+
+  private void onlineConsentChecks() {
+    var scene = find("EasyTranslate · 设置").getScene();
+    var toggle = (CheckBox) scene.lookup("#onlineTranslationToggle");
+    var notice = (Label) scene.lookup("#onlineTranslationNotice");
+    var reject = (Button) scene.lookup("#rejectOnlineTranslationButton");
+    check(!toggle.isSelected(), "online translation defaults off");
+    for (String term : new String[]{"DeepSeek", "选区文本", "网络", "费用", "拒绝", "计费"})
+      check(notice.getText().contains(term), "disclosure includes " + term);
+    check(notice.isWrapText(), "upload notice wraps in settings");
+    var workers = new ArrayDeque<Runnable>();
+    var captures = new java.util.concurrent.atomic.AtomicInteger();
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    onlineCoordinator = new LatestTranslationCoordinator(new TranslateSelectionUseCase(() ->
+        SelectionResult.found("sample-" + captures.incrementAndGet()), source -> {
+          calls.incrementAndGet(); return new Translation(source, "translated-" + source);
+        }, workers::add), Platform::runLater, model::showTranslation,
+        error -> controller.showTranslationError(TranslationFailure.userMessage(error)), model::showOperation, onlinePolicy);
+    onlineCoordinator.refreshOnlineAccess();
+    reject.fire();
+    check(new com.easytranslate.config.OnlineTranslationPolicy(preferences.node("privacy")).decision()
+        == com.easytranslate.config.OnlineTranslationPolicy.Decision.DENIED, "refusal persists");
+    onlineCoordinator.trigger();
+    check(workers.isEmpty() && captures.get() == 0 && calls.get() == 0, "refusal blocks capture and send");
+    later(() -> {
+      check(status().contains("在线翻译已关闭") && status().endsWith("上次结果"), "off state marks retained translation");
+      check(!root.lookup("#statusDot").getPseudoClassStates().contains(javafx.css.PseudoClass.getPseudoClass("ready")), "off state clears success dot");
+      toggle.fire();
+      check(toggle.isSelected() && new com.easytranslate.config.OnlineTranslationPolicy(preferences.node("privacy")).permit().isAllowed(), "explicit consent persists");
+      check(workers.isEmpty() && calls.get() == 0, "enabling does not automatically upload");
+      onlineCoordinator.trigger(); workers.remove().run();
+      later(() -> {
+        check(status().equals("翻译成功") && calls.get() == 1, "consented trigger succeeds");
+        onlineCoordinator.trigger(); workers.remove().run(); // success already queued
+        toggle.fire(); // revoke before publication on the real FX queue
+        later(() -> {
+          check(!toggle.isSelected() && !onlinePolicy.permit().isAllowed(), "toggle off revokes access");
+          check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-sample-1"), "queued old success cannot overwrite retained result");
+          check(status().contains("在线翻译已关闭") && status().endsWith("上次结果"), "old callback cannot overwrite off state");
+          onlineCoordinator.trigger();
+          check(workers.isEmpty() && calls.get() == 2, "disabled trigger cannot submit work");
+          toggle.fire(); onlineCoordinator.trigger(); workers.remove().run();
+          later(() -> {
+            check(status().equals("翻译成功") && calls.get() == 3, "re-enabled new trigger recovers");
+            check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-sample-3"), "only new consented result publishes");
+            onlineCoordinator.close(); finishPreview();
+          });
         });
       });
     });

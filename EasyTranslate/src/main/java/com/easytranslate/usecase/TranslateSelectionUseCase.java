@@ -42,6 +42,12 @@ public class TranslateSelectionUseCase
   /** Progress runs on the worker; callers must gate and dispatch it before touching the UI. */
   public CompletableFuture<Optional<Translation>> execute(BooleanSupplier isCurrent,
       Consumer<TranslationOperation> onProgress) {
+    return execute(isCurrent, onProgress, null);
+  }
+
+  public CompletableFuture<Optional<Translation>> execute(BooleanSupplier isCurrent,
+      Consumer<TranslationOperation> onProgress,
+      com.easytranslate.config.OnlineTranslationPolicy.Permit permit) {
     Objects.requireNonNull(isCurrent, "isCurrent");
     Objects.requireNonNull(onProgress, "onProgress");
     return CompletableFuture.supplyAsync(() -> {
@@ -60,7 +66,7 @@ public class TranslateSelectionUseCase
         case Found -> onProgress.accept(TranslationOperation.TRANSLATING);
       }
       if (!isCurrent.getAsBoolean()) return Optional.empty();
-      return Optional.of(translationService.translate(result.text()));
+      return Optional.of(translationService.translate(result.text(), permit));
     }, worker);
   }
 }

@@ -27,7 +27,13 @@ public class DeepSeekTranslationService implements TranslationService {
   private final ObjectMapper mapper = new ObjectMapper()
       .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
   private final Supplier<Optional<String>> keyProvider;
-  private final Transport transport;
+  private final AsyncTransport transport;
+  private final com.easytranslate.config.OnlineTranslationPolicy onlinePolicy;
+
+  @FunctionalInterface
+  interface AsyncTransport {
+    java.util.concurrent.CompletableFuture<HttpResponse<String>> send(HttpRequest request);
+  }
 
   @FunctionalInterface
   interface Transport {
@@ -35,22 +41,47 @@ public class DeepSeekTranslationService implements TranslationService {
   }
 
   public DeepSeekTranslationService(ApiKeyStore apiKeyStore) {
-    this(Objects.requireNonNull(apiKeyStore)::load, defaultTransport());
+    this(apiKeyStore, new com.easytranslate.config.OnlineTranslationPolicy());
   }
 
-  // Package-local test boundary: no real preferences, secrets or HTTP client needed in tests.
+  public DeepSeekTranslationService(ApiKeyStore apiKeyStore,
+      com.easytranslate.config.OnlineTranslationPolicy onlinePolicy) {
+    this(Objects.requireNonNull(apiKeyStore)::load, defaultTransport(),
+        Objects.requireNonNull(onlinePolicy, "onlinePolicy"));
+  }
+
+  // Legacy synchronous fake boundary; never used by the production constructors.
   DeepSeekTranslationService(Supplier<Optional<String>> keyProvider, Transport transport) {
+    this(keyProvider, request -> {
+      try { return java.util.concurrent.CompletableFuture.completedFuture(transport.send(request)); }
+      catch (IOException | InterruptedException error) {
+        return java.util.concurrent.CompletableFuture.failedFuture(error);
+      }
+    }, null);
+  }
+
+  DeepSeekTranslationService(Supplier<Optional<String>> keyProvider, AsyncTransport transport,
+      com.easytranslate.config.OnlineTranslationPolicy onlinePolicy) {
     this.keyProvider = Objects.requireNonNull(keyProvider, "keyProvider");
     this.transport = Objects.requireNonNull(transport, "transport");
+    this.onlinePolicy = onlinePolicy;
   }
 
-  private static Transport defaultTransport() {
+  private static AsyncTransport defaultTransport() {
     HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
-    return request -> client.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    return request -> client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
   }
 
   @Override
   public Translation translate(String sourceText) {
+    return translate(sourceText, onlinePolicy == null ? null : onlinePolicy.permit());
+  }
+
+  @Override
+  public Translation translate(String sourceText,
+      com.easytranslate.config.OnlineTranslationPolicy.Permit permit) {
+    if (permit == null && onlinePolicy != null) permit = onlinePolicy.permit();
+    if (permit != null) permit.requireAllowed();
     if (sourceText == null || sourceText.isBlank()) {
       throw new IllegalArgumentException("待翻译文本不能为空");
     }
@@ -83,7 +114,8 @@ public class DeepSeekTranslationService implements TranslationService {
         throw new TranslationFailure(KEY_UNREADABLE, error);
       }
       // Exactly one send per call: recovery is manual, never an unbounded automatic retry.
-      HttpResponse<String> response = transport.send(request);
+      var pending = permit == null ? transport.send(request) : permit.start(() -> transport.send(request));
+      HttpResponse<String> response = awaitResponse(pending);
       if (response == null) throw new TranslationFailure(INVALID_RESPONSE);
       if (response.statusCode() != 200) throw statusFailure(response.statusCode());
       return new Translation(sourceText, translatedContent(response.body()));
@@ -97,6 +129,19 @@ public class DeepSeekTranslationService implements TranslationService {
       throw new TranslationFailure(INVALID_RESPONSE, error);
     } catch (IOException error) {
       throw new TranslationFailure(NETWORK, error);
+    }
+  }
+
+  private static HttpResponse<String> awaitResponse(
+      java.util.concurrent.CompletableFuture<HttpResponse<String>> pending)
+      throws IOException, InterruptedException {
+    try { return pending.get(); }
+    catch (java.util.concurrent.ExecutionException error) {
+      Throwable cause = error.getCause();
+      if (cause instanceof IOException io) throw io;
+      if (cause instanceof InterruptedException interrupted) throw interrupted;
+      if (cause instanceof RuntimeException runtime) throw runtime;
+      throw new TranslationFailure(UNKNOWN, error);
     }
   }
 

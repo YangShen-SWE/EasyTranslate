@@ -7,6 +7,7 @@ import java.util.concurrent.ExecutionException;
 /** Safe, local messages: never display remote bodies, keys or low-level exception text. */
 public final class TranslationFailure extends IllegalStateException {
   public enum Kind {
+    ONLINE_DISABLED("在线翻译已关闭，请在设置中阅读说明并同意后开启"),
     MISSING_KEY("请先在设置中保存 DeepSeek API Key"),
     KEY_UNREADABLE("无法读取密钥，请在设置中重新保存 API Key"),
     AUTHENTICATION("密钥无效或无权限，请检查并重新保存 API Key"),

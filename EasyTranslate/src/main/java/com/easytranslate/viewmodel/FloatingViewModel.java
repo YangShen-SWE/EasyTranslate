@@ -39,6 +39,7 @@ public class FloatingViewModel {
 
   private void refreshStatus() {
     String message = switch (operation.get()) {
+      case ONLINE_DISABLED -> "在线翻译已关闭，请在设置中阅读说明并同意后开启";
       case IDLE -> "等待划词";
       case READING -> "正在读取选区";
       case TRANSLATING -> "正在翻译";

@@ -68,10 +68,11 @@ public class EasyTranslateApplication extends Application
 //    );
 //    timer.play();
     ApiKeyStore apiKeyStore = new ApiKeyStore();
+    var onlinePolicy = new com.easytranslate.config.OnlineTranslationPolicy();
     TranslateSelectionUseCase translateSelection = new TranslateSelectionUseCase(
         new WindowsSelectedTextService(),
 //        new MockTranslationService()
-        new DeepSeekTranslationService(apiKeyStore)
+        new DeepSeekTranslationService(apiKeyStore, onlinePolicy)
     );
 
     translationCoordinator = new LatestTranslationCoordinator(
@@ -81,7 +82,9 @@ public class EasyTranslateApplication extends Application
           controller.clearTranslationError();
         },
         error -> controller.showTranslationError(TranslationFailure.userMessage(error)),
-        viewModel::showOperation);
+        viewModel::showOperation, onlinePolicy);
+    controller.configureOnlineTranslation(onlinePolicy, translationCoordinator::refreshOnlineAccess);
+    translationCoordinator.refreshOnlineAccess();
     // Invalidate as soon as the main window hides, before Application.stop or a queued UI callback.
     stage.addEventHandler(WindowEvent.WINDOW_HIDING, event -> translationCoordinator.close());
     controller.enableGlobalInput();

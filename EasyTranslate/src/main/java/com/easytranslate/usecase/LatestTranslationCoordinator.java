@@ -14,6 +14,8 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
   private final Consumer<Translation> onTranslation;
   private final Consumer<Throwable> onFailure;
   private final Consumer<TranslationOperation> onOperation;
+  private final com.easytranslate.config.OnlineTranslationPolicy onlinePolicy;
+  private com.easytranslate.config.OnlineTranslationPolicy.Permit activePermit;
   private long latestIntent;
   private boolean closed;
 
@@ -25,6 +27,14 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
   public LatestTranslationCoordinator(TranslateSelectionUseCase useCase, Executor uiExecutor,
       Consumer<Translation> onTranslation, Consumer<Throwable> onFailure,
       Consumer<TranslationOperation> onOperation) {
+    this(useCase, uiExecutor, onTranslation, onFailure, onOperation, null);
+  }
+
+  public LatestTranslationCoordinator(TranslateSelectionUseCase useCase, Executor uiExecutor,
+      Consumer<Translation> onTranslation, Consumer<Throwable> onFailure,
+      Consumer<TranslationOperation> onOperation,
+      com.easytranslate.config.OnlineTranslationPolicy onlinePolicy) {
+    this.onlinePolicy = onlinePolicy;
     this.onOperation = Objects.requireNonNull(onOperation, "onOperation");
     this.useCase = Objects.requireNonNull(useCase, "useCase");
     this.uiExecutor = Objects.requireNonNull(uiExecutor, "uiExecutor");
@@ -36,9 +46,16 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
   public synchronized void trigger() {
     if (closed) return;
     long intent = ++latestIntent;
+    var permit = onlinePolicy == null ? null : onlinePolicy.permit();
+    activePermit = permit;
+    if (permit != null && !permit.isAllowed()) {
+      activePermit = null;
+      queueOperation(intent, TranslationOperation.ONLINE_DISABLED);
+      return;
+    }
     queueOperation(intent, TranslationOperation.READING);
     try {
-      useCase.execute(() -> isCurrent(intent), operation -> queueOperation(intent, operation))
+      useCase.execute(() -> isCurrent(intent), operation -> queueOperation(intent, operation), permit)
           .whenComplete((translation, error) ->
               uiExecutor.execute(() -> publishIfCurrent(intent, translation, error)));
     } catch (RuntimeException error) {
@@ -57,7 +74,7 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
   }
 
   private synchronized boolean isCurrent(long intent) {
-    return !closed && intent == latestIntent;
+    return !closed && intent == latestIntent && (activePermit == null || activePermit.isAllowed());
   }
 
   private synchronized void publishIfCurrent(long intent,
@@ -72,6 +89,15 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
       // A consumer may reenter trigger/close; never publish this intent's status afterwards.
       if (isCurrent(intent)) onOperation.accept(TranslationOperation.SUCCEEDED);
     });
+  }
+
+  /** Call after an explicit settings decision. Never resumes old work or sends automatically. */
+  public synchronized void refreshOnlineAccess() {
+    if (closed || onlinePolicy == null) return;
+    long intent = ++latestIntent;
+    activePermit = null;
+    queueOperation(intent, onlinePolicy.permit().isAllowed()
+        ? TranslationOperation.IDLE : TranslationOperation.ONLINE_DISABLED);
   }
 
   /** Invalidate pending selection/service/UI work. This does not cancel an in-flight HTTP request. */
