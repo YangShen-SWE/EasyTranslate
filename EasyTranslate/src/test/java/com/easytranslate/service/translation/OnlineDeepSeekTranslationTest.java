@@ -115,6 +115,32 @@ class OnlineDeepSeekTranslationTest {
     }
   }
 
+  @Test void tooLongSelectionNeverLoadsKeyOrSendsAndNextFullBoundaryRecovers() {
+    policy.choose(true);
+    String complete = "a".repeat(999) + "Z";
+    var captures = new ArrayDeque<>(List.of(
+        com.easytranslate.service.selection.SelectionResult.found("a".repeat(1001)),
+        com.easytranslate.service.selection.SelectionResult.found(complete)));
+    var worker = new ArrayDeque<Runnable>();
+    var ui = new ArrayDeque<Runnable>();
+    var results = new ArrayList<com.easytranslate.model.Translation>();
+    var states = new ArrayList<com.easytranslate.usecase.TranslationOperation>();
+    try (var coordinator = new com.easytranslate.usecase.LatestTranslationCoordinator(
+        new com.easytranslate.usecase.TranslateSelectionUseCase(captures::remove, service(), worker::add),
+        ui::add, results::add, error -> fail("unexpected synthetic service failure", error), states::add, policy)) {
+      coordinator.trigger(); worker.remove().run();
+      Runnable task; while ((task = ui.poll()) != null) task.run();
+      assertEquals(0, loads.get()); assertEquals(0, sends.get()); assertTrue(results.isEmpty());
+      assertEquals(List.of(com.easytranslate.usecase.TranslationOperation.READING,
+          com.easytranslate.usecase.TranslationOperation.SELECTION_TOO_LONG), states);
+      coordinator.trigger(); worker.remove().run();
+      while ((task = ui.poll()) != null) task.run();
+      assertEquals(1, loads.get()); assertEquals(1, sends.get());
+      assertEquals(complete, results.getFirst().sourceText());
+      assertEquals(com.easytranslate.usecase.TranslationOperation.SUCCEEDED, states.getLast());
+    }
+  }
+
   private record Reply(HttpRequest request) implements HttpResponse<String> {
     public int statusCode() { return 200; }
     public String body() { return "{\"choices\":[{\"message\":{\"content\":\"译文\"}}]}"; }

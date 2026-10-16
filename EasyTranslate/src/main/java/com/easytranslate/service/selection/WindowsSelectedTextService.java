@@ -1,13 +1,16 @@
 package com.easytranslate.service.selection;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.concurrent.TimeUnit;
 
 public class WindowsSelectedTextService implements SelectedTextService {
 
-  private static final String SCRIPT = """
+  // Package-visible for offline script-contract checks; tests never capture the desktop.
+  static final String SCRIPT = """
             $ErrorActionPreference = 'Stop'
             [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -66,6 +69,7 @@ public class WindowsSelectedTextService implements SelectedTextService {
                 foreach ($candidate in $candidates) {
                     $node = $candidate
                     for ($level = 0; $level -lt 8 -and $null -ne $node; $level++) {
+                        if (-not (Test-Foreground $node)) { break }
                         try {
                             $pattern = $null
                             $supported = $node.TryGetCurrentPattern(
@@ -74,9 +78,21 @@ public class WindowsSelectedTextService implements SelectedTextService {
                             )
                             if ($supported) {
                                 $ranges = $pattern.GetSelection()
-                                if ($null -ne $ranges -and $ranges.Length -gt 0) {
-                                    $text = $ranges[0].GetText(1000)
-                                    if ([string]::IsNullOrWhiteSpace($text)) {
+                                if ($null -ne $ranges -and $ranges.Length -gt 1) {
+                                    # Disjoint selections are not supported; do not send only the first range.
+                                    [Console]::Write('UNKNOWN')
+                                    exit
+                                }
+                                if ($null -ne $ranges -and $ranges.Length -eq 0) {
+                                    $sawEmptySelection = $true
+                                }
+                                if ($null -ne $ranges -and $ranges.Length -eq 1) {
+                                    # Probe one extra UTF-16 unit; never translate a silent prefix.
+                                    $text = $ranges[0].GetText(%d)
+                                    if ($null -ne $text -and $text.Length -gt %d) {
+                                        $foundText = $text
+                                        break
+                                    } elseif ([string]::IsNullOrWhiteSpace($text)) {
                                         $sawEmptySelection = $true
                                     } else {
                                         $foundText = $text
@@ -98,7 +114,15 @@ public class WindowsSelectedTextService implements SelectedTextService {
                     }
                 }
 
-                if ($null -ne $foundText) {
+                # Reject a detected foreground change during this capture. This is not a keypress snapshot.
+                if ([ForegroundNative]::GetForegroundWindow().ToInt64() -ne $foreground) {
+                    [Console]::Write('UNKNOWN')
+                    exit
+                }
+
+                if ($null -ne $foundText -and $foundText.Length -gt %d) {
+                    [Console]::Write('TOO_LONG')
+                } elseif ($null -ne $foundText) {
                     $bytes = [System.Text.Encoding]::UTF8.GetBytes($foundText)
                     [Console]::Write('FOUND:' + [Convert]::ToBase64String($bytes))
                 } elseif ($sawEmptySelection) {
@@ -109,7 +133,8 @@ public class WindowsSelectedTextService implements SelectedTextService {
             } catch {
                 [Console]::Write('UNKNOWN')
             }
-            """;
+            """.formatted(SelectionResult.MAX_TEXT_LENGTH + 1,
+                SelectionResult.MAX_TEXT_LENGTH, SelectionResult.MAX_TEXT_LENGTH);
 
   @Override
   public SelectionResult getSelectedText() {
@@ -136,27 +161,8 @@ public class WindowsSelectedTextService implements SelectedTextService {
         return SelectionResult.unknown();
       }
 
-      String response = new String(
-          process.getInputStream().readAllBytes(),
-          StandardCharsets.UTF_8
-      ).trim();
-
-      if (response.equals("NONE")) {
-        return SelectionResult.none();
-      }
-
-      if (response.startsWith("FOUND:")) {
-        byte[] bytes = Base64.getDecoder().decode(
-            response.substring("FOUND:".length())
-        );
-        String text = new String(bytes, StandardCharsets.UTF_8);
-
-        if (!text.isBlank()) {
-          return SelectionResult.found(text);
-        }
-      }
-
-      return SelectionResult.unknown();
+      return parseResponse(new String(process.getInputStream().readAllBytes(),
+          StandardCharsets.UTF_8));
 
     } catch (InterruptedException e) {
       if (process != null) {
@@ -165,6 +171,23 @@ public class WindowsSelectedTextService implements SelectedTextService {
       Thread.currentThread().interrupt();
       return SelectionResult.unknown();
     } catch (IOException | IllegalArgumentException e) {
+      return SelectionResult.unknown();
+    }
+  }
+
+  /** Decode only the local capture protocol; no process, focus or credentials are accessed here. */
+  static SelectionResult parseResponse(String response) {
+    if (response == null) return SelectionResult.unknown();
+    response = response.strip();
+    if (response.equals("NONE")) return SelectionResult.none();
+    if (response.equals("TOO_LONG")) return SelectionResult.tooLong();
+    if (!response.startsWith("FOUND:")) return SelectionResult.unknown();
+    try {
+      byte[] bytes = Base64.getDecoder().decode(response.substring("FOUND:".length()));
+      String text = StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString();
+      if (text.length() > SelectionResult.MAX_TEXT_LENGTH) return SelectionResult.tooLong();
+      return text.isBlank() ? SelectionResult.none() : SelectionResult.found(text);
+    } catch (IllegalArgumentException | CharacterCodingException error) {
       return SelectionResult.unknown();
     }
   }

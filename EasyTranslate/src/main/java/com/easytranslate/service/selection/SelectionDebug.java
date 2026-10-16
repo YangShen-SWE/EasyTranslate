@@ -13,6 +13,7 @@ public class SelectionDebug {
       case Found -> System.out.println("读到：" + result.text());
       case None -> System.out.println("确认：当前没有选中文字");
       case Unknown -> System.out.println("无法判断当前软件的选区");
+      case TooLong -> System.out.println("选区过长，未返回截断文字");
     }
   }
 }

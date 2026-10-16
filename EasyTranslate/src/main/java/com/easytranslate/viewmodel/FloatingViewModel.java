@@ -46,6 +46,9 @@ public class FloatingViewModel {
       case SUCCEEDED -> "翻译成功";
       case NO_SELECTION -> "未选中文字，请选中后再按 Tab";
       case UNREADABLE -> "无法读取选区，请尝试其他应用";
+      case SELECTION_TOO_LONG -> "选区过长，未发送翻译；请缩短到 "
+          + com.easytranslate.service.selection.SelectionResult.MAX_TEXT_LENGTH
+          + " 个 UTF-16 单位以内（部分字符占 2 个单位）后重试";
       case FAILED -> failureMessage;
     };
     if (!translatedText.get().isEmpty() && operation.get() != TranslationOperation.SUCCEEDED) {

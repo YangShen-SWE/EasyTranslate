@@ -69,6 +69,26 @@ class LatestTranslationCoordinatorTest {
   }
 
   @Test
+  void tooLongTriggerInvalidatesInFlightSuccessAndFailure() throws Exception {
+    checkInFlightOldResponse(false, SelectionResult.tooLong());
+    checkInFlightOldResponse(true, SelectionResult.tooLong());
+  }
+
+  @Test
+  void tooLongHasItsOwnTerminalStateAndNextShortSelectionRecovers() {
+    Fixture f = new Fixture(SelectionResult.tooLong(), SelectionResult.found("B"));
+    f.coordinator.trigger(); f.worker.runAll(); f.ui.runAll();
+    assertEquals(List.of(TranslationOperation.READING, TranslationOperation.SELECTION_TOO_LONG), f.operations);
+    assertEquals(0, f.translationCalls.get());
+    assertTrue(f.translations.isEmpty());
+    assertTrue(f.failures.isEmpty());
+    f.coordinator.trigger(); f.worker.runAll(); f.ui.runAll();
+    assertEquals(List.of(translated("B")), f.translations);
+    assertEquals(1, f.translationCalls.get());
+    assertEquals(TranslationOperation.SUCCEEDED, f.operations.getLast());
+  }
+
+  @Test
   void staleSuccessAlreadyQueuedForUiIsRecheckedAfterNewTrigger() {
     Fixture f = new Fixture(SelectionResult.found("A"), SelectionResult.found("B"));
     f.coordinator.trigger();
@@ -201,8 +221,11 @@ class LatestTranslationCoordinatorTest {
           ? List.of(translated("B")) : List.of(), f.translations);
       assertEquals(newer.status() == SelectionResult.Status.Found
           ? List.of(TranslationOperation.READING, TranslationOperation.TRANSLATING, TranslationOperation.SUCCEEDED)
-          : List.of(TranslationOperation.READING, newer.status() == SelectionResult.Status.None
-              ? TranslationOperation.NO_SELECTION : TranslationOperation.UNREADABLE), f.operations);
+          : List.of(TranslationOperation.READING, switch (newer.status()) {
+            case None -> TranslationOperation.NO_SELECTION;
+            case TooLong -> TranslationOperation.SELECTION_TOO_LONG;
+            default -> TranslationOperation.UNREADABLE;
+          }), f.operations);
     } finally {
       gate.release.countDown();
       oldWorker.get(WAIT_SECONDS, TimeUnit.SECONDS);
@@ -278,7 +301,7 @@ class LatestTranslationCoordinatorTest {
   @Test
   void supersededQueuedProgressAndEmptyTerminalNeverReachUi() {
     for (SelectionResult old : List.of(SelectionResult.found("A"), SelectionResult.none(),
-        SelectionResult.unknown())) {
+        SelectionResult.unknown(), SelectionResult.tooLong())) {
       Fixture f = new Fixture(old, SelectionResult.found("B"));
       f.coordinator.trigger();
       f.worker.runNext(); // Every A callback is already queued.
@@ -296,7 +319,7 @@ class LatestTranslationCoordinatorTest {
   @Test
   void closeDropsAllQueuedStatesAsWellAsResults() {
     for (SelectionResult selection : List.of(SelectionResult.found("A"), SelectionResult.none(),
-        SelectionResult.unknown())) {
+        SelectionResult.unknown(), SelectionResult.tooLong())) {
       Fixture f = new Fixture(selection);
       f.coordinator.trigger();
       f.worker.runAll();

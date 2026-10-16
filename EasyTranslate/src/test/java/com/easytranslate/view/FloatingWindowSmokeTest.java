@@ -427,9 +427,44 @@ public class FloatingWindowSmokeTest extends Application {
           later(() -> {
             check(status().equals("翻译成功") && calls.get() == 3, "re-enabled new trigger recovers");
             check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-sample-3"), "only new consented result publishes");
-            onlineCoordinator.close(); finishPreview();
+            onlineCoordinator.close(); selectionBoundaryChecks();
           });
         });
+      });
+    });
+  }
+
+  private void selectionBoundaryChecks() {
+    var workers = new ArrayDeque<Runnable>();
+    String complete = "a".repeat(999) + "Z";
+    var selections = new ArrayDeque<>(java.util.List.of(
+        SelectionResult.found("a".repeat(1001)), SelectionResult.found(complete)));
+    var calls = new java.util.concurrent.atomic.AtomicInteger();
+    var coordinator = new LatestTranslationCoordinator(new TranslateSelectionUseCase(selections::remove,
+        source -> { calls.incrementAndGet(); return new Translation(source, "boundary-success"); },
+        workers::add), Platform::runLater, model::showTranslation,
+        error -> controller.showTranslationError("synthetic boundary failure"), model::showOperation, onlinePolicy);
+    ((ToggleButton) find("EasyTranslate · 设置").getScene().lookup("#windowSizeSmall")).fire();
+    coordinator.trigger(); workers.remove().run();
+    later(() -> {
+      check(calls.get() == 0, "oversized selection never calls translator");
+      check(status().contains("未发送翻译") && status().contains("1000 个 UTF-16 单位")
+          && status().endsWith("上次结果"), "real FX queue explains oversized selection and retained result");
+      check(((Label) root.lookup("#translatedLabel")).getText().equals("translated-sample-3"), "oversized selection retains old translation");
+      check(((Label) root.lookup("#sourceLabel")).getText().equals("sample-3"), "oversized selection never displays a prefix as source");
+      check(!root.lookup("#statusDot").getPseudoClassStates().contains(javafx.css.PseudoClass.getPseudoClass("ready")), "oversized selection is not success");
+      check(!((Button) root.lookup("#copyButton")).isDisabled(), "previous result remains copyable");
+      Label label = (Label) root.lookup("#statusLabel");
+      check(Math.abs(stage.getWidth() - 420) < 2, "length advice keeps small window width");
+      check(label.getHeight() + 1 >= label.prefHeight(label.getWidth()), "length advice wraps without clipping");
+      var button = root.lookup("#settingsButton");
+      check(button.localToScene(button.getBoundsInLocal()).getMaxX() <= stage.getWidth(), "length advice leaves settings visible");
+      coordinator.trigger(); workers.remove().run();
+      later(() -> {
+        check(calls.get() == 1, "next allowed boundary selection calls translator exactly once");
+        check(((Label) root.lookup("#sourceLabel")).getText().equals(complete), "complete 1000-unit source reaches UI without truncation");
+        check(status().equals("翻译成功"), "shortened selection clears oversized state and retained marker");
+        coordinator.close(); finishPreview();
       });
     });
   }

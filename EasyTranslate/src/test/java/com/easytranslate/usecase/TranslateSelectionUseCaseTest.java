@@ -144,6 +144,40 @@ class TranslateSelectionUseCaseTest {
     assertEquals(1, translator.calls.get());
   }
 
+  @Test
+  void tooLongSelectionEndsWithoutCallingTranslationOrPublishingTranslating() throws Exception {
+    var translator = new RecordingTranslationService();
+    var operations = new java.util.ArrayList<TranslationOperation>();
+    var useCase = new TranslateSelectionUseCase(
+        () -> SelectionResult.found("a".repeat(1001)), translator);
+    assertTrue(await(useCase.execute(() -> true, operations::add)).isEmpty());
+    assertEquals(java.util.List.of(TranslationOperation.SELECTION_TOO_LONG), operations);
+    assertEquals(0, translator.calls.get());
+    assertNull(translator.lastSource.get());
+  }
+
+  @Test
+  void boundarySelectionsReachTranslationOnceAndInFull() throws Exception {
+    for (int length : new int[]{999, 1000}) {
+      var translator = new RecordingTranslationService();
+      String source = "a".repeat(length - 1) + "Z";
+      var useCase = new TranslateSelectionUseCase(() -> SelectionResult.found(source), translator);
+      assertEquals(source, await(useCase.execute()).orElseThrow().sourceText());
+      assertEquals(source, translator.lastSource.get());
+      assertEquals(1, translator.calls.get());
+    }
+  }
+
+  @Test
+  void confirmedEmptySelectionPublishesNoSelectionRatherThanSuccess() throws Exception {
+    var translator = new RecordingTranslationService();
+    var useCase = new TranslateSelectionUseCase(SelectionResult::none, translator);
+    var operations = new java.util.ArrayList<TranslationOperation>();
+    assertTrue(await(useCase.execute(() -> true, operations::add)).isEmpty());
+    assertEquals(java.util.List.of(TranslationOperation.NO_SELECTION), operations);
+    assertEquals(0, translator.calls.get());
+  }
+
   private static Optional<Translation> await(
       CompletableFuture<Optional<Translation>> future) throws Exception {
     return future.get(WAIT_SECONDS, TimeUnit.SECONDS);

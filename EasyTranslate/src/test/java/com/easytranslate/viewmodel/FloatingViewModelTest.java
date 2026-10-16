@@ -82,6 +82,23 @@ class FloatingViewModelTest {
   }
 
   @Test
+  void tooLongExplainsLimitAndNoUploadWhileRetainingOldTranslation() {
+    var model = new FloatingViewModel();
+    model.showOperation(TranslationOperation.SELECTION_TOO_LONG);
+    String message = model.statusTextProperty().get();
+    assertTrue(message.contains("未发送翻译"));
+    assertTrue(message.contains("1000 个 UTF-16 单位"));
+    assertFalse(message.contains("上次结果"));
+    model.showTranslation(new Translation("old", "旧译文"));
+    model.showOperation(TranslationOperation.SELECTION_TOO_LONG);
+    assertEquals(message + " · 上次结果", model.statusTextProperty().get());
+    assertEquals("old", model.sourceTextProperty().get());
+    assertEquals("旧译文", model.translatedTextProperty().get());
+    model.showTranslation(new Translation("new", "新译文"));
+    assertEquals("翻译成功", model.statusTextProperty().get());
+  }
+
+  @Test
   void invalidInputsDoNotMutateExistingPresentation() {
     var model = new FloatingViewModel();
     model.showTranslation(new Translation("word", "词"));

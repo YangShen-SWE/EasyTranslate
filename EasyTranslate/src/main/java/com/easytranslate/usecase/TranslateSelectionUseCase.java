@@ -63,6 +63,10 @@ public class TranslateSelectionUseCase
           onProgress.accept(TranslationOperation.UNREADABLE);
           return Optional.empty();
         }
+        case TooLong -> {
+          onProgress.accept(TranslationOperation.SELECTION_TOO_LONG);
+          return Optional.empty();
+        }
         case Found -> onProgress.accept(TranslationOperation.TRANSLATING);
       }
       if (!isCurrent.getAsBoolean()) return Optional.empty();
