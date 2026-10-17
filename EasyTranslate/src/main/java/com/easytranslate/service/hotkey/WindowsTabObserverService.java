@@ -17,12 +17,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class WindowsTabObserverService implements GlobalHotkeyService {
-  private static final int VK_TAB = 0x09;
-
-  private final AtomicBoolean tabDown = new AtomicBoolean(false);
   private final CountDownLatch ready = new CountDownLatch(1);
 
   private final ExecutorService notifications =
@@ -77,29 +73,16 @@ public final class WindowsTabObserverService implements GlobalHotkeyService {
       // 先创建线程的 Windows 消息队列，关闭时才能向它发送退出消息。
       User32.INSTANCE.PeekMessage(message, null, 0, 0, 0);
 
+      TabTriggerFilter trigger = new TabTriggerFilter(
+          isKeyDown(TabTriggerFilter.VK_TAB), WindowsTabObserverService::isKeyDown);
       callback = (nCode, wParam, keyInfo) -> {
         try {
-          if (nCode >= 0 && keyInfo != null && keyInfo.vkCode == VK_TAB) {
-            int eventType = wParam.intValue();
-
-            if (eventType == WinUser.WM_KEYDOWN
-                || eventType == WinUser.WM_SYSKEYDOWN) {
-              // 长按 Tab 会产生重复 key-down；一次按下只通知一次。
-              //alt+tab组合键排除
-              if (tabDown.compareAndSet(false, true)) {
-                boolean altDown = (keyInfo.flags & 0x20) != 0;
-                if(!altDown && eventType ==WinUser.WM_KEYDOWN){
-                  try {
-                    notifications.execute(onTriggered);
-                  } catch (RejectedExecutionException ignored) {
-                    // 程序正在关闭，不再提交新通知。
-                  }
-                }
-
-              }
-            } else if (eventType == WinUser.WM_KEYUP
-                || eventType == WinUser.WM_SYSKEYUP) {
-              tabDown.set(false);
+          if (keyInfo != null && trigger.onKeyEvent(
+              nCode, wParam.intValue(), keyInfo.vkCode, keyInfo.flags)) {
+            try {
+              notifications.execute(onTriggered);
+            } catch (RejectedExecutionException ignored) {
+              // 程序正在关闭，不再提交新通知。
             }
           }
         } catch (RuntimeException ignored) {
@@ -170,6 +153,11 @@ public final class WindowsTabObserverService implements GlobalHotkeyService {
       callback = null;
       notifications.shutdownNow();
     }
+  }
+
+  private static boolean isKeyDown(int virtualKey) {
+    // High bit only: the low bit means "pressed since last query", not currently held.
+    return (User32.INSTANCE.GetAsyncKeyState(virtualKey) & 0x8000) != 0;
   }
 
   @Override
