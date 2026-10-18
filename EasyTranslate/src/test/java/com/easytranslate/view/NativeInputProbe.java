@@ -25,7 +25,8 @@ public class NativeInputProbe extends Application {
     TextField second = new TextField();
     second.setPromptText("第二个输入框：检查Tab前进、Shift+Tab后退、候选文字正常到达");
     Label triggerResult = new Label();
-    tabObserver = new WindowsTabObserverService();
+    // Diagnostic deliberately counts keys inside its own input fields. Production excludes own windows.
+    tabObserver = new WindowsTabObserverService(false);
     tabObserver.start(tabNotifications::incrementAndGet);
     VBox root = new VBox(15,
         new Label("离线手动检查：仅记录次数/动效位，不读取选区、不翻译、不保存输入"),

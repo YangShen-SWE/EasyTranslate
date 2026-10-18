@@ -22,6 +22,9 @@ import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
+import javafx.scene.input.KeyCombination;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
@@ -64,6 +67,7 @@ public class FloatingViewController {
 
   private final Preferences preferences;
   private final ApiKeyStore apiKeyStore;
+  private final java.util.function.Predicate<String> clipboardWriter;
   private com.easytranslate.config.OnlineTranslationPolicy onlinePolicy;
   private Runnable onOnlineChange = () -> {};
   private final BooleanProperty showSource = new SimpleBooleanProperty(true);
@@ -89,9 +93,22 @@ public class FloatingViewController {
   }
 
   FloatingViewController(Preferences preferences, ApiKeyStore apiKeyStore) {
-    this.preferences = preferences;
-    this.apiKeyStore = apiKeyStore;
+    this(preferences, apiKeyStore, FloatingViewController::writeClipboard);
+  }
+
+  // The UI focus checker must not read or overwrite the user's real clipboard.
+  FloatingViewController(Preferences preferences, ApiKeyStore apiKeyStore,
+      java.util.function.Predicate<String> clipboardWriter) {
+    this.preferences = Objects.requireNonNull(preferences);
+    this.apiKeyStore = Objects.requireNonNull(apiKeyStore);
+    this.clipboardWriter = Objects.requireNonNull(clipboardWriter);
     this.onlinePolicy = new com.easytranslate.config.OnlineTranslationPolicy(preferences.node("privacy"));
+  }
+
+  private static boolean writeClipboard(String text) {
+    ClipboardContent content = new ClipboardContent();
+    content.putString(text);
+    return Clipboard.getSystemClipboard().setContent(content);
   }
 
   public void configureOnlineTranslation(com.easytranslate.config.OnlineTranslationPolicy policy,
@@ -153,6 +170,19 @@ public class FloatingViewController {
     pinButton.setSelected(preferences.getBoolean("alwaysOnTop", true));
     stage.setAlwaysOnTop(pinButton.isSelected());
     stage.setResizable(false);
+    Scene scene = stage.getScene();
+    // Local accelerators only: automatic result/status updates never show, raise or focus a window.
+    scene.getAccelerators().put(new KeyCodeCombination(KeyCode.C, KeyCombination.SHORTCUT_DOWN),
+        copyButton::fire);
+    scene.getAccelerators().put(new KeyCodeCombination(KeyCode.COMMA, KeyCombination.SHORTCUT_DOWN),
+        settingsButton::fire);
+    scene.getAccelerators().put(new KeyCodeCombination(KeyCode.F6), translatedScroll::requestFocus);
+    scene.getAccelerators().put(new KeyCodeCombination(KeyCode.F6, KeyCombination.SHIFT_DOWN),
+        () -> { if (showSource.get()) sourceScroll.requestFocus(); else translatedScroll.requestFocus(); });
+    scene.getAccelerators().put(new KeyCodeCombination(KeyCode.ESCAPE), stage::close);
+    translatedScroll.setTooltip(new Tooltip("F6进入译文，方向键/翻页键滚动；Ctrl+C复制译文"));
+    sourceScroll.setTooltip(new Tooltip("Shift+F6进入原文，方向键/翻页键滚动"));
+    settingsButton.setTooltip(new Tooltip("设置（Ctrl+,）；Esc关闭当前窗口"));
     stage.setOnShown(event -> { queueResize(); refreshMotion(); });
     stage.addEventHandler(javafx.stage.WindowEvent.WINDOW_HIDDEN, event -> {
       copyFeedback.stop();
@@ -253,9 +283,7 @@ public class FloatingViewController {
 
   @FXML private void onCopy() {
     if (viewModel == null || copyButton.isDisabled()) return;
-    ClipboardContent content = new ClipboardContent();
-    content.putString(viewModel.translatedTextProperty().get());
-    if (Clipboard.getSystemClipboard().setContent(content)) {
+    if (clipboardWriter.test(viewModel.translatedTextProperty().get())) {
       // Copy feedback must not disguise a pending/failed operation or a retained result.
       statusLabel.setText("译文已复制 · " + viewModel.statusTextProperty().get());
       queueResize();
@@ -478,7 +506,8 @@ public class FloatingViewController {
     configureButton(close, "x", "关闭设置");
     motion.addHover(close);
     close.setAccessibleText("关闭设置");
-    close.setOnAction(event -> stage.close());
+    close.setId("closeSettingsButton");
+    close.setOnAction(event -> closeUtility(stage));
     Region spacer = new Region();
     HBox.setHgrow(spacer, Priority.ALWAYS);
     Node brand = WindowIcon.create("leaf", 18);
@@ -499,6 +528,8 @@ public class FloatingViewController {
     });
     content.getStyleClass().add("settings-content");
     ScrollPane settingsScroll = new ScrollPane(content);
+    settingsScroll.setId("settingsScroll");
+    settingsScroll.setAccessibleText("设置内容，方向键或翻页键滚动");
     settingsScroll.getStyleClass().add("settings-scroll");
     settingsScroll.setFitToWidth(true);
     settingsScroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
@@ -512,7 +543,10 @@ public class FloatingViewController {
     scene.getStylesheets().add(Objects.requireNonNull(getClass().getResource("floating-window.css")).toExternalForm());
     stage.setScene(scene);
     scene.setOnKeyPressed(event -> {
-      if (event.getCode() == javafx.scene.input.KeyCode.ESCAPE) stage.close();
+      if (event.getCode() == KeyCode.ESCAPE) {
+        closeUtility(stage);
+        event.consume();
+      }
     });
     return stage;
   }
@@ -541,9 +575,22 @@ public class FloatingViewController {
     stage.setScene(scene);
     stage.setResizable(false);
     scene.setOnKeyPressed(event -> {
-      if (event.getCode() == javafx.scene.input.KeyCode.ESCAPE) stage.close();
+      if (event.getCode() == KeyCode.ESCAPE) {
+        closeUtility(stage);
+        event.consume();
+      }
     });
     return stage;
+  }
+
+  private void closeUtility(Stage stage) {
+    stage.close();
+    // Return only after an explicit close action, never on a translation callback.
+    if (getStage().isShowing()) {
+      getStage().requestFocus();
+      if (stage == settingsStage) settingsButton.requestFocus();
+      else vocabularyButton.requestFocus();
+    }
   }
 
   private void showUtility(Stage stage) {

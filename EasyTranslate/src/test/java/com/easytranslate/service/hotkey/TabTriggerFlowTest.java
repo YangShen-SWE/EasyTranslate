@@ -102,6 +102,29 @@ class TabTriggerFlowTest {
     assertTrue(f.results.isEmpty()); assertTrue(f.operations.isEmpty());
   }
 
+  @Test void tabInAnyOwnWindowDoesNotQueueReadSendOrOperationAndExternalPressRecovers() {
+    var f = new Fixture(SelectionResult.found("synthetic input"));
+    f.ownWindow = true;
+    f.key(KEY_DOWN, VK_TAB, 0); f.drain();
+    assertEquals(0, f.reads); assertEquals(0, f.calls);
+    assertTrue(f.operations.isEmpty());
+    assertEquals(InputActivityBuffer.LEFT, f.effects.drain());
+    f.ownWindow = false;
+    f.key(KEY_DOWN, VK_TAB, 0); f.drain();
+    assertEquals(0, f.reads);
+    f.key(KEY_UP, VK_TAB, 0); f.key(KEY_DOWN, VK_TAB, 0); f.drain();
+    assertEquals(1, f.reads); assertEquals(1, f.calls);
+  }
+
+  @Test void ownWindowTraversalDoesNotInvalidateAnExternalTranslationAlreadyQueued() {
+    var f = new Fixture(SelectionResult.found("synthetic input"));
+    f.key(KEY_DOWN, VK_TAB, 0); f.notifications.runAll(); f.worker.runAll();
+    f.key(KEY_UP, VK_TAB, 0); f.ownWindow = true; f.key(KEY_DOWN, VK_TAB, 0);
+    f.drain();
+    assertEquals(1, f.reads); assertEquals(1, f.calls); assertEquals(1, f.results.size());
+    assertEquals(TranslationOperation.SUCCEEDED, f.operations.getLast());
+  }
+
   private static final class ManualQueue implements Executor {
     final Queue<Runnable> tasks = new ArrayDeque<>();
     public void execute(Runnable action) { tasks.add(action); }
@@ -110,7 +133,8 @@ class TabTriggerFlowTest {
 
   private static final class Fixture {
     final Set<Integer> modifiers = new HashSet<>();
-    final TabTriggerFilter filter = new TabTriggerFilter(false, modifiers::contains);
+    boolean ownWindow;
+    final TabTriggerFilter filter = new TabTriggerFilter(false, modifiers::contains, () -> ownWindow);
     final InputActivityBuffer effects = new InputActivityBuffer();
     final ManualQueue notifications = new ManualQueue(), worker = new ManualQueue(), ui = new ManualQueue();
     final List<Translation> results = new ArrayList<>();

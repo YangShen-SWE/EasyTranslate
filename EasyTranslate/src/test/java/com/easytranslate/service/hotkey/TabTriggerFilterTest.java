@@ -126,6 +126,39 @@ class TabTriggerFilterTest {
     assertTrue(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
   }
 
+  @Test void ownWindowSuppressionLatchesUntilReleaseEvenIfFocusMovesAway() {
+    var ownWindow = new java.util.concurrent.atomic.AtomicBoolean(true);
+    var f = new TabTriggerFilter(false, key -> false, ownWindow::get);
+    assertFalse(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+    ownWindow.set(false);
+    assertFalse(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+    f.onKeyEvent(0, KEY_UP, VK_TAB, 0);
+    assertTrue(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+  }
+
+  @Test void eachFreshPressSamplesForegroundGateOnce() {
+    var samples = new AtomicInteger();
+    var f = new TabTriggerFilter(false, key -> false, () -> samples.getAndIncrement() == 1);
+    assertTrue(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+    assertFalse(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+    assertEquals(1, samples.get());
+    f.onKeyEvent(0, KEY_UP, VK_TAB, 0);
+    assertFalse(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+    assertEquals(2, samples.get());
+  }
+
+  @Test void failedForegroundQueryCannotTurnHeldTabIntoARepeatedIntent() {
+    var f = new TabTriggerFilter(false, key -> false, () -> { throw new IllegalStateException("fake foreground failure"); });
+    assertThrows(IllegalStateException.class, () -> f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+    assertFalse(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+  }
+
+  @Test void rejectedChordDoesNotQueryForegroundAndNullGateIsRejected() {
+    var f = new TabTriggerFilter(false, key -> key == 0x10, () -> fail("unneeded foreground query"));
+    assertFalse(f.onKeyEvent(0, KEY_DOWN, VK_TAB, 0));
+    assertThrows(NullPointerException.class, () -> new TabTriggerFilter(false, key -> false, null));
+  }
+
   @Test void modifierReaderIsRequired() {
     assertThrows(NullPointerException.class, () -> new TabTriggerFilter(false, null));
   }

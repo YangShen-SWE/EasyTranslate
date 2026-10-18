@@ -2,6 +2,7 @@ package com.easytranslate.service.hotkey;
 
 import java.util.Objects;
 import java.util.function.IntPredicate;
+import java.util.function.BooleanSupplier;
 
 /** Hook-thread-only decision; never consumes keys, captures text or starts translation itself. */
 final class TabTriggerFilter {
@@ -11,12 +12,18 @@ final class TabTriggerFilter {
   private static final int ALT_DOWN = 0x20;
   private static final int INJECTED = 0x10 | 0x02;
   private final IntPredicate keyDown;
+  private final BooleanSupplier suppressTrigger;
   private boolean tabDown;
 
   /** A Tab already held at installation must be released before it can trigger. */
   TabTriggerFilter(boolean tabInitiallyDown, IntPredicate keyDown) {
+    this(tabInitiallyDown, keyDown, () -> false);
+  }
+
+  TabTriggerFilter(boolean tabInitiallyDown, IntPredicate keyDown, BooleanSupplier suppressTrigger) {
     this.tabDown = tabInitiallyDown;
     this.keyDown = Objects.requireNonNull(keyDown, "keyDown");
+    this.suppressTrigger = Objects.requireNonNull(suppressTrigger, "suppressTrigger");
   }
 
   boolean onKeyEvent(int hookCode, int event, int virtualKey, int flags) {
@@ -34,6 +41,7 @@ final class TabTriggerFilter {
         && !keyDown.test(0x11)  // Control (either side, including AltGr's Control)
         && !keyDown.test(0x12)  // Alt (either side)
         && !keyDown.test(0x5B)  // left Windows
-        && !keyDown.test(0x5C); // right Windows
+        && !keyDown.test(0x5C)  // right Windows
+        && !suppressTrigger.getAsBoolean();
   }
 }

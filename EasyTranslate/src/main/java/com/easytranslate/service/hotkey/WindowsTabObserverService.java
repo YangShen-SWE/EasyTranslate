@@ -2,6 +2,7 @@ package com.easytranslate.service.hotkey;
 
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
+import com.sun.jna.ptr.IntByReference;
 import com.sun.jna.platform.win32.Kernel32;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef.LPARAM;
@@ -20,6 +21,14 @@ import java.util.concurrent.TimeUnit;
 
 public final class WindowsTabObserverService implements GlobalHotkeyService {
   private final CountDownLatch ready = new CountDownLatch(1);
+  private final boolean excludeOwnWindows;
+
+  public WindowsTabObserverService() { this(true); }
+
+  /** false is for the isolated native key diagnostic only, not application translation. */
+  public WindowsTabObserverService(boolean excludeOwnWindows) {
+    this.excludeOwnWindows = excludeOwnWindows;
+  }
 
   private final ExecutorService notifications =
       Executors.newSingleThreadExecutor(task -> {
@@ -74,7 +83,8 @@ public final class WindowsTabObserverService implements GlobalHotkeyService {
       User32.INSTANCE.PeekMessage(message, null, 0, 0, 0);
 
       TabTriggerFilter trigger = new TabTriggerFilter(
-          isKeyDown(TabTriggerFilter.VK_TAB), WindowsTabObserverService::isKeyDown);
+          isKeyDown(TabTriggerFilter.VK_TAB), WindowsTabObserverService::isKeyDown,
+          () -> excludeOwnWindows && isOwnProcessOrUnknownForeground());
       callback = (nCode, wParam, keyInfo) -> {
         try {
           if (keyInfo != null && trigger.onKeyEvent(
@@ -153,6 +163,16 @@ public final class WindowsTabObserverService implements GlobalHotkeyService {
       callback = null;
       notifications.shutdownNow();
     }
+  }
+
+  private static boolean isOwnProcessOrUnknownForeground() {
+    // Native process identity covers main/settings/utility windows, not a delayed FX focus flag.
+    var foreground = User32.INSTANCE.GetForegroundWindow();
+    if (foreground == null) return true;
+    IntByReference process = new IntByReference();
+    int thread = User32.INSTANCE.GetWindowThreadProcessId(foreground, process);
+    return thread == 0 || process.getValue() == 0
+        || process.getValue() == Kernel32.INSTANCE.GetCurrentProcessId();
   }
 
   private static boolean isKeyDown(int virtualKey) {

@@ -4,10 +4,10 @@
 
 The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, or a real translation API. They use in-memory services through the existing interfaces. They do not prove that selection capture or real API requests work on a user's computer.
 
-核心JUnit测试使用 SelectedTextService / TranslationService 接口注入内存假服务，直接验证真实 TranslateSelectionUseCase 与 LatestTranslationCoordinator。D04的DeepSeekTranslationServiceTest进一步在真实服务内注入假HTTP传输与假密钥提供器，验证请求构造、响应解析与错误分类，不创建真实HTTP客户端。不启动JavaFX工具包、全局监听、Windows UI Automation，不读取个人配置或密钥，也不联网调用翻译API。FloatingViewModelTest仅使用JavaFX属性，不启动窗口。D01建立测试基线，D02加入生产请求协调逻辑，D03扩展状态与保留标记，D04分类在线失败，D05扩展知情联网与版本化许可，D06增加选区超长拒绝与本地协议解码，D07增加纯Tab筛选与离线触发链；不能把历史基线范围当成当前范围。D06的WindowsSelectedTextServiceTest不启动PowerShell/UIA，只验证真实Java解码器和生成脚本文本的结构契约，不能当作真实Windows提供者/焦点实测。D05配置/请求/协调器测试仅使用临时Preferences节点（用后删除）和自造内容，不读取个人配置/凭据；请求测试仍不创建真实HTTP客户端。
+核心JUnit测试使用 SelectedTextService / TranslationService 接口注入内存假服务，直接验证真实 TranslateSelectionUseCase 与 LatestTranslationCoordinator。D04的DeepSeekTranslationServiceTest进一步在真实服务内注入假HTTP传输与假密钥提供器，验证请求构造、响应解析与错误分类，不创建真实HTTP客户端。不启动JavaFX工具包、全局监听、Windows UI Automation，不读取个人配置或密钥，也不联网调用翻译API。FloatingViewModelTest仅使用JavaFX属性，不启动窗口。D01建立测试基线，D02加入生产请求协调逻辑，D03扩展状态与保留标记，D04分类在线失败，D05扩展知情联网与版本化许可，D06增加选区超长拒绝与本地协议解码，D07增加纯Tab筛选与离线触发链，D08增加自窗口通知排除与独立FX键盘/焦点检查；不能把历史基线范围当成当前范围。D06的WindowsSelectedTextServiceTest不启动PowerShell/UIA，只验证真实Java解码器和生成脚本文本的结构契约，不能当作真实Windows提供者/焦点实测。D05配置/请求/协调器测试仅使用临时Preferences节点（用后删除）和自造内容，不读取个人配置/凭据；请求测试仍不创建真实HTTP客户端。
 
-- TabTriggerFilterTest：14个JUnit方法；合成事件/假修饰键读数，覆盖物理Tab单次/长按、五类修饰键、Alt上下文/系统消息、注入标志、初始已按住、负hookCode、非Tab/未知消息、异常读数及重新允许。循环不累计为测试方法。没有调用User32或安装钩子，不证明真实修饰键采样/输入法候选行为。
-- TabTriggerFlowTest：7个JUnit方法；真实筛选器+用例+协调器+InputActivityBuffer，手动通知/工作/UI队列与假选区/服务。覆盖长按一次、组合键拒绝不捕获、None/Unknown/TooLong不翻译、新空选区丢弃旧UI成功、拒绝的组合键不撤销已接受意图、动效位独立以及协调器关闭。此为离线组合证据，不是原生按键传递/真实动效钩子证据。
+- TabTriggerFilterTest：18个JUnit方法（D07为14，D08新增4）；新增假前台禁止、切窗后仍按住不连发、每次新按下采样一次、前台查询失败锁定与组合键不查询；合成事件/假修饰键读数，覆盖物理Tab单次/长按、五类修饰键、Alt上下文/系统消息、注入标志、初始已按住、负hookCode、非Tab/未知消息、异常读数及重新允许。循环不累计为测试方法。没有调用User32或安装钩子，不证明真实修饰键采样/输入法候选行为。
+- TabTriggerFlowTest：9个JUnit方法（D07为7，D08新增2）；新增自身窗口Tab不通知/捕获/发送且外部新按下恢复、内部遍历不使已接受外部结果失效；真实筛选器+用例+协调器+InputActivityBuffer，手动通知/工作/UI队列与假选区/服务。覆盖长按一次、组合键拒绝不捕获、None/Unknown/TooLong不翻译、新空选区丢弃旧UI成功、拒绝的组合键不撤销已接受意图、动效位独立以及协调器关闭。此为离线组合证据，不是原生按键传递/真实动效钩子证据。
 - OnlineTranslationPolicyTest：10个JUnit方法，临时Preferences验证默认关闭、明确同意/拒绝后重建恢复、损坏/其他说明版本不启用、关闭及重新开启使旧许可失效、禁止晚到准入、等待中响应不阻塞关闭，以及配置读取/保存异常时当前进程保持关闭。重建对象不等于已做干净安装/真实进程重启。
 - WindowsSelectedTextServiceTest：11个JUnit方法，真实本地协议解码覆盖999/1000完整、1001/更大拒绝、空白/None/Unknown、UTF-16补充字符、多行Unicode、损坏Base64/UTF-8；脚本文本契约检查1001探测、长度拒绝先于编码、父节点前台归属/输出前句柄复查、多段拒绝。后面三项是静态结构检查，不是脚本实际运行或跨应用通过。
 - OnlineDeepSeekTranslationTest：9个JUnit方法，真实DeepSeek请求/解析逻辑配异步假HTTP与假密钥；默认/拒绝不读密钥或发送，同意仅一次发送，准备期间关闭/重开旧许可不再准入，等待响应不阻塞关闭，异步超时保持D04分类；真实服务+用例+协调器联动验证旧HTTP结果不能在重开后发布、需新触发恢复；D06新增超长选区不加载密钥/不准入传输，下一次完整1000单位文本恢复。不创建真实HTTP客户端或服务端。
@@ -18,8 +18,9 @@ The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, 
 - TranslateSelectionUseCaseTest：10个JUnit方法，保留原7项异步/异常/None/Unknown行为；D06新增超长结束且不发TRANSLATING/不调服务、999/1000完整传递一次、确认空选区发布NO_SELECTION而非成功。使用有上限的Future/闩锁等待，不靠sleep碰运气。原execute()兼容入口仍默认异步。
 - SelectionResultTest：13个JUnit方法，保留原8项空白与状态契约；D06新增999/1000允许、1001拒绝不留前缀、直接构造不可绕过、原始空白/补充字符长度、TooLong不含文本。非Found契约同时覆盖新状态。循环输入不当成额外测试数。
 - FloatingViewModelTest：8个JUnit方法，仅用JavaFX属性不启动工具包；保留原7项展示/恢复行为，新增超长原因、UTF-16上限与未发送文案、保留结果和下次成功恢复。
-- FloatingWindowSmokeTest：独立JavaFX main检查器，不是JUnit用例；D03历史89、D04历史129、D05历史153、D06历史165项检查。D07未改生产控制器/FXML/窗口/FX焦点代码，未重跑此入口，不能把165写成D07通过或与核心JUnit相加。
-- NativeInputProbe：D07扩展了两个输入框、合格Tab通知次数和原有动效位，供人工核对原输入/焦点遍历。没有选区/翻译/持久化；本次仅test-compile编译，未启动、未做真实按键或输入法操作，不证明原生通过。详见[Tab安全待验矩阵](tab-trigger-safety.md)。
+- FloatingWindowSmokeTest：独立JavaFX main检查器，不是JUnit用例；D03历史89、D04历史129、D05历史153、D06历史165项检查。D07未改生产控制器/FXML/窗口/FX焦点代码，未重跑此入口。D08改动这些链路后重新实际运行：UI_SMOKE_PASSED: 165 checks / 退出码0；独立main不得与JUnit相加。
+- FloatingKeyboardSmokeTest：D08新增独立JavaFX main，实际KEYBOARD_SMOKE_PASSED: 52 checks / 退出码0；真实FXML/场景/皮肤、合成本地KeyEvent检查前进/后退、禁用/隐藏跳过、Space复制、局部快捷键、长文翻页、辅助窗口Esc与主窗返回、自造源窗口在状态/结果/失败及resize时保留焦点/选区。临时Preferences与假剪贴板写入器；不安装钩子/调用User32、不读写真实剪贴板或个人配置，不等同跨进程/物理键盘/IME验证。初次运行因TextField首次聚焦会调整选区而失败，修正为聚焦后建立并先断言哨兵选区；保留发布后不变断言，再次运行通过，未跳过检查。
+- NativeInputProbe：D07扩展了两个输入框、合格Tab通知次数和原有动效位，供人工核对原输入/焦点遍历。没有选区/翻译/持久化；D07/D08仅test-compile编译，未启动、未做真实按键或输入法操作，不证明原生通过。D08诊断显式使用false关闭生产默认的同进程排除，才能在自身输入框计数；主程序继续用默认true。详见[Tab安全待验矩阵](tab-trigger-safety.md)。
 
 ## Run only affected tests / 只运行受影响测试
 
@@ -27,7 +28,7 @@ The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, 
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Java\jdk-25.0.4-full'
-./mvnw.cmd '-Dtest=TabTriggerFilterTest,TabTriggerFlowTest,TranslateSelectionUseCaseTest,LatestTranslationCoordinatorTest,OnlineTranslationCoordinatorTest' test
+./mvnw.cmd '-Dtest=TabTriggerFilterTest,TabTriggerFlowTest,TranslateSelectionUseCaseTest,LatestTranslationCoordinatorTest,OnlineTranslationCoordinatorTest,FloatingViewModelTest' test
 ```
 
 只改选区结果契约时，可缩小为：
@@ -36,7 +37,9 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-25.0.4-full'
 ./mvnw.cmd '-Dtest=SelectionResultTest' test
 ```
 
-上面的五类为D07实际定向范围：14+7+10+24+9=64，失败/错误/跳过均为0，最终命令退出码0 / BUILD SUCCESS（2026-10-17T14:38:48+02:00）；五份Surefire文本报告已核对。新增21项筛选/组合链，回归43项用例/协调器/在线开关协同。没有改选区解码、模型/FX展示、配置格式、HTTP实现或模块依赖，未重跑这些独立类；不是缩小已有断言或跳过失败。D06实际定向七类为WindowsSelectedTextServiceTest、SelectionResultTest、TranslateSelectionUseCaseTest、LatestTranslationCoordinatorTest、FloatingViewModelTest、OnlineDeepSeekTranslationTest、OnlineTranslationCoordinatorTest，共84项。D01历史15、D02历史28、D03历史42、D04历史68、D05历史95、D06历史84均保留原执行含义；不同增量集合不能相加或解释为测试被删除。
+上面的六类为D08实际定向范围：18+9+10+24+9+8=78，失败/错误/跳过均为0，退出码0 / BUILD SUCCESS（2026-10-18T20:19:08+02:00），六份Surefire文本报告已读取。相同Maven命令还执行dependency:build-classpath生成/复用target/ui-classpath.txt；随后test-compile同步最新焦点样式，按既有Java参数依次运行键盘52与窗口165，两种main检查不能与78项JUnit或彼此累计成同一测试集。选择核心触发回归加展示模型，再执行真实FXML/控制器/焦点路径；未改HTTP/选区协议/持久化格式，不重跑其无关独立类。见[键盘操作与证据边界](keyboard-focus.md)。
+
+D07实际定向五类（不含FloatingViewModelTest）范围：14+7+10+24+9=64，失败/错误/跳过均为0，最终命令退出码0 / BUILD SUCCESS（2026-10-17T14:38:48+02:00）；五份Surefire文本报告已核对。新增21项筛选/组合链，回归43项用例/协调器/在线开关协同。没有改选区解码、模型/FX展示、配置格式、HTTP实现或模块依赖，未重跑这些独立类；不是缩小已有断言或跳过失败。D06实际定向七类为WindowsSelectedTextServiceTest、SelectionResultTest、TranslateSelectionUseCaseTest、LatestTranslationCoordinatorTest、FloatingViewModelTest、OnlineDeepSeekTranslationTest、OnlineTranslationCoordinatorTest，共84项。D01历史15、D02历史28、D03历史42、D04历史68、D05历史95、D06历史84均保留原执行含义；不同增量集合不能相加或解释为测试被删除。
 
 D07筛选器只决定是否发翻译通知，Windows回调仍统一CallNextHookEx，不吞键；GetAsyncKeyState高位采样不是所有修饰键的原子快照。合成事件不能证明系统真实传递或候选兼容，无修饰候选Tab仍不能识别。实际Windows/输入法/快捷键案例全标待验；敏感/候选使用前先在设置关闭在线翻译，已准入请求不能撤回。详见[Tab安全与手动验收](tab-trigger-safety.md)。
 
@@ -65,4 +68,4 @@ pom显式使用Surefire 3.5.4运行JUnit 5，测试JVM使用classpath，避免�
 - 修改共享配置/模块依赖/构建系统等横切链路时扩大关联回归；最后一天按累计diff回归关键路径，不要求每次无差别全量执行。
 - Maven 3.8.5在JDK25上可能给出Jansi native-access及Guava Unsafe弃用警告。记录它们，不据此谎报测试失败，也不随意给测试增加无关权限开关。
 
-真实DeepSeek API、实际选区捕获、输入法、焦点、多屏与干净安装仍需独立验证。核心测试通过不代表这些已验证。
+真实DeepSeek API、实际选区捕获、输入法、跨进程/物理键盘焦点、多屏与干净安装仍需独立验证。D08同进程自造源窗口的自动化焦点保持通过，不应扩大解释为全部真实应用无抢焦点。核心测试通过不代表原生已验证。

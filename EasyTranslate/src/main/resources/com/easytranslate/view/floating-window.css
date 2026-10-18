@@ -24,6 +24,7 @@
 .source-text, .translated-text { -fx-text-fill: #f1f4f6; -fx-line-spacing: 4; }
 .text-scroll, .text-scroll > .viewport { -fx-background-color: transparent; }
 .text-scroll { -fx-padding: 0; -fx-background-insets: 0; -fx-border-width: 0; }
+.text-scroll:focused, .settings-scroll:focused { -fx-effect: innershadow(gaussian, #8be6c0, 3, 1, 0, 0); }
 .separator .line { -fx-border-color: #3d4650; -fx-border-width: 0.5; }
 .column-divider { -fx-padding: 4 0; }
 .footer-divider { -fx-padding: 0 16; }

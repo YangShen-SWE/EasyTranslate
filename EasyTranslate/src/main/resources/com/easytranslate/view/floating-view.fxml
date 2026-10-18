@@ -20,9 +20,9 @@
             <StackPane fx:id="brandIcon"/>
             <Label text="EasyTranslate" styleClass="window-title"/>
             <Region HBox.hgrow="ALWAYS"/>
-            <ToggleButton fx:id="pinButton" onAction="#onTogglePin" focusTraversable="false"
+            <ToggleButton fx:id="pinButton" onAction="#onTogglePin" focusTraversable="true"
                           accessibleText="切换窗口置顶" styleClass="icon-button"/>
-            <Button fx:id="closeButton" onAction="#onClose" focusTraversable="false"
+            <Button fx:id="closeButton" onAction="#onClose" focusTraversable="true"
                     accessibleText="关闭窗口" styleClass="icon-button,close-button"/>
         </HBox>
         <HBox spacing="22" styleClass="translation-body">
@@ -30,8 +30,8 @@
                 <HBox alignment="CENTER_LEFT" minHeight="28">
                     <Label text="原文 · EN" styleClass="section-label"/>
                 </HBox>
-                <ScrollPane fx:id="sourceScroll" fitToWidth="true" hbarPolicy="NEVER"
-                            prefHeight="68" minHeight="64" focusTraversable="false" styleClass="text-scroll">
+                <ScrollPane fx:id="sourceScroll" accessibleText="原文，方向键或翻页键滚动" fitToWidth="true" hbarPolicy="NEVER"
+                            prefHeight="68" minHeight="64" focusTraversable="true" styleClass="text-scroll">
                     <Label fx:id="sourceLabel" wrapText="true" maxWidth="Infinity" styleClass="source-text"/>
                 </ScrollPane>
             </VBox>
@@ -40,11 +40,11 @@
                 <HBox alignment="CENTER_LEFT" minHeight="28">
                     <Label text="译文 · 中文" styleClass="section-label"/>
                     <Region HBox.hgrow="ALWAYS"/>
-                    <Button fx:id="copyButton" onAction="#onCopy" focusTraversable="false"
+                    <Button fx:id="copyButton" onAction="#onCopy" focusTraversable="true"
                             accessibleText="复制译文" styleClass="icon-button,copy-button"/>
                 </HBox>
-                <ScrollPane fx:id="translatedScroll" fitToWidth="true" hbarPolicy="NEVER"
-                            prefHeight="68" minHeight="64" focusTraversable="false" styleClass="text-scroll">
+                <ScrollPane fx:id="translatedScroll" accessibleText="译文，方向键或翻页键滚动" fitToWidth="true" hbarPolicy="NEVER"
+                            prefHeight="68" minHeight="64" focusTraversable="true" styleClass="text-scroll">
                     <Label fx:id="translatedLabel" wrapText="true" maxWidth="Infinity" styleClass="translated-text"/>
                 </ScrollPane>
             </VBox>
@@ -55,10 +55,10 @@
             <Label fx:id="statusLabel" text="等待划词" wrapText="true" minWidth="0"
                    maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="status-label"/>
             <Button fx:id="vocabularyButton" text="单词本" onAction="#onVocabulary"
-                    focusTraversable="false" styleClass="text-button"/>
+                    focusTraversable="true" styleClass="text-button"/>
             <Separator orientation="VERTICAL" prefHeight="16" maxHeight="16"/>
             <Button fx:id="settingsButton" text="设置" onAction="#onSettings"
-                    focusTraversable="false" styleClass="text-button"/>
+                    focusTraversable="true" styleClass="text-button"/>
         </HBox>
     </VBox>
 </VBox>
