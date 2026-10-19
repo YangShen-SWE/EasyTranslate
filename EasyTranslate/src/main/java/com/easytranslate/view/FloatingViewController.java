@@ -1,6 +1,9 @@
 package com.easytranslate.view;
 
 import com.easytranslate.config.ApiKeyStore;
+import com.easytranslate.config.AppearancePreferences;
+import com.easytranslate.config.AppearancePreferences.Setting;
+import javafx.beans.property.SimpleStringProperty;
 import com.easytranslate.viewmodel.FloatingViewModel;
 import com.easytranslate.usecase.TranslationOperation;
 import javafx.animation.PauseTransition;
@@ -65,7 +68,9 @@ public class FloatingViewController {
   @FXML private ToggleButton pinButton;
   @FXML private Button closeButton, copyButton, vocabularyButton, settingsButton;
 
-  private final Preferences preferences;
+  private final AppearancePreferences appearance;
+  private AppearancePreferences.Snapshot restored;
+  private final SimpleStringProperty appearanceStatus = new SimpleStringProperty("更改立即生效，保存成功后下次启动恢复");
   private final ApiKeyStore apiKeyStore;
   private final java.util.function.Predicate<String> clipboardWriter;
   private com.easytranslate.config.OnlineTranslationPolicy onlinePolicy;
@@ -99,7 +104,7 @@ public class FloatingViewController {
   // The UI focus checker must not read or overwrite the user's real clipboard.
   FloatingViewController(Preferences preferences, ApiKeyStore apiKeyStore,
       java.util.function.Predicate<String> clipboardWriter) {
-    this.preferences = Objects.requireNonNull(preferences);
+    this.appearance = new AppearancePreferences(Objects.requireNonNull(preferences));
     this.apiKeyStore = Objects.requireNonNull(apiKeyStore);
     this.clipboardWriter = Objects.requireNonNull(clipboardWriter);
     this.onlinePolicy = new com.easytranslate.config.OnlineTranslationPolicy(preferences.node("privacy"));
@@ -119,7 +124,9 @@ public class FloatingViewController {
   }
 
   @FXML private void initialize() {
-    windowSize = WindowSize.fromPreference(preferences.get(WINDOW_SIZE_KEY, WindowSize.LARGE.name()));
+    restored = appearance.load();
+    if (restored.recovered()) appearanceStatus.set("部分外观配置损坏或无法读取，已使用安全默认值；修改后可重新保存");
+    windowSize = WindowSize.fromPreference(restored.windowSize());
     root.setPrefWidth(windowSize.width);
     brandIcon.getChildren().add(WindowIcon.create("leaf", 18));
     brandIcon.getStyleClass().add("brand-icon");
@@ -132,24 +139,24 @@ public class FloatingViewController {
     loadImage(deskImage, "desk.png", new Rectangle2D(440, 223, 930, 492));
     motion = new CompanionMotion(catHost, catImage, deskHost, deskImage);
     for (ButtonBase button : new ButtonBase[]{pinButton, closeButton, copyButton, vocabularyButton, settingsButton}) motion.addHover(button);
-    motionEnabled.set(preferences.getBoolean("motionEnabled", true));
+    motionEnabled.set(restored.motionEnabled());
     motionEnabled.addListener((observable, before, after) -> {
-      preferences.putBoolean("motionEnabled", after);
+      saveAppearance(Setting.MOTION_ENABLED, after.toString());
       refreshMotion();
     });
     decorations.visibleProperty().addListener((observable, before, after) -> refreshMotion());
-    decorations.setVisible(preferences.getBoolean("decorations", true));
+    decorations.setVisible(restored.decorations());
     decorations.managedProperty().bind(decorations.visibleProperty());
-    showSource.set(preferences.getBoolean("showSource", true));
+    showSource.set(restored.showSource());
     sourceColumn.visibleProperty().bind(showSource);
     sourceColumn.managedProperty().bind(showSource);
     columnDivider.visibleProperty().bind(showSource);
     columnDivider.managedProperty().bind(showSource);
     showSource.addListener((observable, before, after) -> {
-      preferences.putBoolean("showSource", after);
+      saveAppearance(Setting.SHOW_SOURCE, after.toString());
       queueResize();
     });
-    setFontSize(preferences.getInt("fontSize", 22));
+    setFontSize(restored.fontSize());
     copyFeedback.setOnFinished(event -> refreshStatus());
     sourceScroll.viewportBoundsProperty().addListener((observable, before, after) -> queueResize());
     translatedScroll.viewportBoundsProperty().addListener((observable, before, after) -> queueResize());
@@ -167,7 +174,7 @@ public class FloatingViewController {
   }
 
   public void configureStage(Stage stage) {
-    pinButton.setSelected(preferences.getBoolean("alwaysOnTop", true));
+    pinButton.setSelected(restored.alwaysOnTop());
     stage.setAlwaysOnTop(pinButton.isSelected());
     stage.setResizable(false);
     Scene scene = stage.getScene();
@@ -293,7 +300,7 @@ public class FloatingViewController {
 
   @FXML private void onTogglePin() {
     getStage().setAlwaysOnTop(pinButton.isSelected());
-    preferences.putBoolean("alwaysOnTop", pinButton.isSelected());
+    saveAppearance(Setting.ALWAYS_ON_TOP, Boolean.toString(pinButton.isSelected()));
   }
 
   @FXML private void onVocabulary() {
@@ -308,6 +315,11 @@ public class FloatingViewController {
       vocabularyStage = utilityStage("单词本", new VBox(title, empty), 440);
     }
     showUtility(vocabularyStage);
+  }
+
+  private void saveAppearance(Setting setting, String value) {
+    appearanceStatus.set(appearance.save(setting, value) ? "外观设置已保存，下次启动恢复"
+        : "外观设置保存失败：当前更改已生效，未确认重启恢复，请重试更改");
   }
 
   @FXML private void onSettings() {
@@ -351,7 +363,7 @@ public class FloatingViewController {
       showDecorations.setSelected(decorations.isVisible());
       showDecorations.selectedProperty().addListener((observable, before, after) -> {
         decorations.setVisible(after);
-        preferences.putBoolean("decorations", after);
+        saveAppearance(Setting.DECORATIONS, after.toString());
         queueResize();
       });
       Label sizeLabel = label(fontSize + " px", "setting-value");
@@ -368,7 +380,7 @@ public class FloatingViewController {
       slider.valueProperty().addListener((observable, before, after) -> {
         setFontSize((int) Math.round(after.doubleValue()));
         sizeLabel.setText(fontSize + " px");
-        preferences.putInt("fontSize", fontSize);
+        saveAppearance(Setting.FONT_SIZE, Integer.toString(fontSize));
       });
       HBox sliderRow = new HBox(12, label("16", "muted"), slider, label("26", "muted"));
       sliderRow.setAlignment(Pos.CENTER_LEFT);
@@ -388,7 +400,7 @@ public class FloatingViewController {
           return;
         }
         windowSize = (WindowSize) after.getUserData();
-        preferences.put(WINDOW_SIZE_KEY, windowSize.name());
+        saveAppearance(Setting.WINDOW_SIZE, windowSize.name());
         root.setPrefWidth(windowSize.width);
         queueResize();
       });
@@ -400,13 +412,19 @@ public class FloatingViewController {
       apiKeyField.setAccessibleText("DeepSeek API Key");
       apiKeyField.setPromptText("输入 DeepSeek API Key");
       apiKeyField.setMaxWidth(Double.MAX_VALUE);
-      Label apiKeyStatus = label(apiKeyStore.hasSavedKey() ? "已保存 API Key" : "尚未保存 API Key", "muted");
+      ApiKeyStore.StoredState keyState = apiKeyStore.storedState();
+      Label apiKeyStatus = label(switch (keyState) {
+        case ABSENT -> "尚未保存 API Key";
+        case PRESENT -> "已保存 API Key（仅本地可读取，未联网验证）";
+        case UNREADABLE -> "已存密钥损坏或无法读取，请重新保存或删除（未联网验证）";
+      }, "muted");
       apiKeyStatus.setId("apiKeyStatus");
+      apiKeyStatus.setWrapText(true);
       Button saveApiKey = new Button("保存");
       saveApiKey.setId("saveApiKeyButton");
       Button deleteApiKey = new Button("删除");
       deleteApiKey.setId("deleteApiKeyButton");
-      deleteApiKey.setDisable(!apiKeyStore.hasSavedKey());
+      deleteApiKey.setDisable(keyState == ApiKeyStore.StoredState.ABSENT);
       saveApiKey.setOnAction(event -> {
         if (apiKeyField.getText().isBlank()) {
           apiKeyStatus.setText("请输入 API Key 后再保存");
@@ -415,22 +433,28 @@ public class FloatingViewController {
         try {
           apiKeyStore.save(apiKeyField.getText());
           apiKeyField.clear();
-          apiKeyStatus.setText("已保存 API Key，新翻译请求立即使用");
+          apiKeyStatus.setText("API Key 已加密保存（未联网验证）；在线开启后需重新触发翻译");
           deleteApiKey.setDisable(false);
-          clearTranslationError();
+          // Saving is not a successful request: preserve existing failure/retained-result state.
         } catch (RuntimeException error) {
-          apiKeyStatus.setText("保存失败，请重试");
+          apiKeyStatus.setText("保存失败，未确认持久化成功；请重新输入后重试");
+          deleteApiKey.setDisable(apiKeyStore.storedState() == ApiKeyStore.StoredState.ABSENT);
+        } finally {
+          apiKeyField.clear();
         }
       });
       deleteApiKey.setOnAction(event -> {
         try {
           apiKeyStore.delete();
           apiKeyField.clear();
-          apiKeyStatus.setText("已删除 API Key");
+          apiKeyStatus.setText("本地 API Key 已删除；已发出的请求无法撤回，仍可能计费");
           deleteApiKey.setDisable(true);
           showTranslationError("请先在设置中保存 DeepSeek API Key");
         } catch (RuntimeException error) {
-          apiKeyStatus.setText("删除失败，请重试");
+          apiKeyStatus.setText("删除失败，未确认持久化成功；密钥可能仍存在，请重试");
+          deleteApiKey.setDisable(apiKeyStore.storedState() == ApiKeyStore.StoredState.ABSENT);
+        } finally {
+          apiKeyField.clear();
         }
       });
       HBox apiKeyButtons = new HBox(8, saveApiKey, deleteApiKey);
@@ -440,6 +464,10 @@ public class FloatingViewController {
           apiKeyButtons, apiKeyStatus);
       HBox heading = new HBox(12, WindowIcon.create("settings", 26), label("外观设置", "utility-title"));
       heading.setAlignment(Pos.CENTER_LEFT);
+      Label persistenceStatus = label("", "muted");
+      persistenceStatus.setId("appearanceSaveStatus");
+      persistenceStatus.setWrapText(true);
+      persistenceStatus.textProperty().bind(appearanceStatus);
       VBox content = new VBox(20, heading, onlineSetting, new Separator(),
           settingRow("显示原文", "关闭后仅显示译文", sourceToggle), new Separator(),
           settingRow("悬浮窗置顶", "保持在其他窗口上方", alwaysOnTop), new Separator(),
@@ -448,7 +476,7 @@ public class FloatingViewController {
           windowSizeSetting, new Separator(),
           new VBox(14, sizeHeader, sliderRow), new Separator(),
           apiKeySetting, new Separator(),
-          label("更改立即生效，并自动保存", "muted"));
+          persistenceStatus);
       settingsStage = appearanceStage(content);
     }
     showUtility(settingsStage);

@@ -4,8 +4,10 @@
 
 The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, or a real translation API. They use in-memory services through the existing interfaces. They do not prove that selection capture or real API requests work on a user's computer.
 
-核心JUnit测试使用 SelectedTextService / TranslationService 接口注入内存假服务，直接验证真实 TranslateSelectionUseCase 与 LatestTranslationCoordinator。D04的DeepSeekTranslationServiceTest进一步在真实服务内注入假HTTP传输与假密钥提供器，验证请求构造、响应解析与错误分类，不创建真实HTTP客户端。不启动JavaFX工具包、全局监听、Windows UI Automation，不读取个人配置或密钥，也不联网调用翻译API。FloatingViewModelTest仅使用JavaFX属性，不启动窗口。D01建立测试基线，D02加入生产请求协调逻辑，D03扩展状态与保留标记，D04分类在线失败，D05扩展知情联网与版本化许可，D06增加选区超长拒绝与本地协议解码，D07增加纯Tab筛选与离线触发链，D08增加自窗口通知排除与独立FX键盘/焦点检查；不能把历史基线范围当成当前范围。D06的WindowsSelectedTextServiceTest不启动PowerShell/UIA，只验证真实Java解码器和生成脚本文本的结构契约，不能当作真实Windows提供者/焦点实测。D05配置/请求/协调器测试仅使用临时Preferences节点（用后删除）和自造内容，不读取个人配置/凭据；请求测试仍不创建真实HTTP客户端。
+核心JUnit测试使用 SelectedTextService / TranslationService 接口注入内存假服务，直接验证真实 TranslateSelectionUseCase 与 LatestTranslationCoordinator。D04的DeepSeekTranslationServiceTest进一步在真实服务内注入假HTTP传输与假密钥提供器，验证请求构造、响应解析与错误分类，不创建真实HTTP客户端。不启动JavaFX工具包、全局监听、Windows UI Automation，不读取个人配置或密钥，也不联网调用翻译API。FloatingViewModelTest仅使用JavaFX属性，不启动窗口。D01建立测试基线，D02加入生产请求协调逻辑，D03扩展状态与保留标记，D04分类在线失败，D05扩展知情联网与版本化许可，D06增加选区超长拒绝与本地协议解码，D07增加纯Tab筛选与离线触发链，D08增加自窗口通知排除与独立FX键盘/焦点检查，D09增加外观配置安全回退/flush确认、密钥持久化与独立FX重建检查；不能把历史基线范围当成当前范围。D06的WindowsSelectedTextServiceTest不启动PowerShell/UIA，只验证真实Java解码器和生成脚本文本的结构契约，不能当作真实Windows提供者/焦点实测。D05配置/请求/协调器测试仅使用临时Preferences节点（用后删除）和自造内容，不读取个人配置/凭据；请求测试仍不创建真实HTTP客户端。
 
+- AppearancePreferencesTest：11个JUnit方法，完全内存Preferences后端，验证6项既有外观键保存后flush/假后端重建、缺失默认值、损坏逐项回退而不覆盖原数据、字号16–26/窗口档位、可观察读取失败、put/flush失败不报保存成功及重试。另覆盖AbstractPreferences吞掉SPI读异常返回默认值时只能安全回退，不能辨识为错误。
+- ApiKeyStoreTest：13个JUnit方法，内存Preferences+假保护算法（不是DPAPI安全证明）；验证假密钥保护/严格UTF-8读取、flush后假后端重建/删除、空输入、损坏Base64/解密失败/空明文、读/写/flush异常与尽力回滚重试。保护算法仅包级测试注入，生产公开构造器仍走Windows DPAPI，不读个人配置/密钥。密钥缺失与被后端吞掉的读异常无法总是区分，均不发明密钥。
 - TabTriggerFilterTest：18个JUnit方法（D07为14，D08新增4）；新增假前台禁止、切窗后仍按住不连发、每次新按下采样一次、前台查询失败锁定与组合键不查询；合成事件/假修饰键读数，覆盖物理Tab单次/长按、五类修饰键、Alt上下文/系统消息、注入标志、初始已按住、负hookCode、非Tab/未知消息、异常读数及重新允许。循环不累计为测试方法。没有调用User32或安装钩子，不证明真实修饰键采样/输入法候选行为。
 - TabTriggerFlowTest：9个JUnit方法（D07为7，D08新增2）；新增自身窗口Tab不通知/捕获/发送且外部新按下恢复、内部遍历不使已接受外部结果失效；真实筛选器+用例+协调器+InputActivityBuffer，手动通知/工作/UI队列与假选区/服务。覆盖长按一次、组合键拒绝不捕获、None/Unknown/TooLong不翻译、新空选区丢弃旧UI成功、拒绝的组合键不撤销已接受意图、动效位独立以及协调器关闭。此为离线组合证据，不是原生按键传递/真实动效钩子证据。
 - OnlineTranslationPolicyTest：10个JUnit方法，临时Preferences验证默认关闭、明确同意/拒绝后重建恢复、损坏/其他说明版本不启用、关闭及重新开启使旧许可失效、禁止晚到准入、等待中响应不阻塞关闭，以及配置读取/保存异常时当前进程保持关闭。重建对象不等于已做干净安装/真实进程重启。
@@ -20,6 +22,7 @@ The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, 
 - FloatingViewModelTest：8个JUnit方法，仅用JavaFX属性不启动工具包；保留原7项展示/恢复行为，新增超长原因、UTF-16上限与未发送文案、保留结果和下次成功恢复。
 - FloatingWindowSmokeTest：独立JavaFX main检查器，不是JUnit用例；D03历史89、D04历史129、D05历史153、D06历史165项检查。D07未改生产控制器/FXML/窗口/FX焦点代码，未重跑此入口。D08改动这些链路后重新实际运行：UI_SMOKE_PASSED: 165 checks / 退出码0；独立main不得与JUnit相加。
 - FloatingKeyboardSmokeTest：D08新增独立JavaFX main，实际KEYBOARD_SMOKE_PASSED: 52 checks / 退出码0；真实FXML/场景/皮肤、合成本地KeyEvent检查前进/后退、禁用/隐藏跳过、Space复制、局部快捷键、长文翻页、辅助窗口Esc与主窗返回、自造源窗口在状态/结果/失败及resize时保留焦点/选区。临时Preferences与假剪贴板写入器；不安装钩子/调用User32、不读写真实剪贴板或个人配置，不等同跨进程/物理键盘/IME验证。初次运行因TextField首次聚焦会调整选区而失败，修正为聚焦后建立并先断言哨兵选区；保留发布后不变断言，再次运行通过，未跳过检查。
+- FloatingPreferencesSmokeTest：D09新增独立FX main，实际PREFERENCES_SMOKE_PASSED: 40 checks / 退出码0。真实FXML、控件、Stage与生产DPAPI仅处理自造假密钥，完全内存Preferences后端，验证六项外观更改/重建、损坏回退、保存/删除失败及重试、清空密码输入、保存不清除先前失败/上次结果、不自动同意联网。假后端重建+Stage重建不等于真实进程重启/注册表磁盘持久化测试；真实个人配置/密钥不触碰。D09也重跑窗口165与键盘52，不复用D08历史通过冒充本次结果。
 - NativeInputProbe：D07扩展了两个输入框、合格Tab通知次数和原有动效位，供人工核对原输入/焦点遍历。没有选区/翻译/持久化；D07/D08仅test-compile编译，未启动、未做真实按键或输入法操作，不证明原生通过。D08诊断显式使用false关闭生产默认的同进程排除，才能在自身输入框计数；主程序继续用默认true。详见[Tab安全待验矩阵](tab-trigger-safety.md)。
 
 ## Run only affected tests / 只运行受影响测试
@@ -28,7 +31,7 @@ The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, 
 
 ```powershell
 $env:JAVA_HOME = 'C:\Program Files\Java\jdk-25.0.4-full'
-./mvnw.cmd '-Dtest=TabTriggerFilterTest,TabTriggerFlowTest,TranslateSelectionUseCaseTest,LatestTranslationCoordinatorTest,OnlineTranslationCoordinatorTest,FloatingViewModelTest' test
+./mvnw.cmd '-Dtest=AppearancePreferencesTest,ApiKeyStoreTest,OnlineTranslationPolicyTest,DeepSeekTranslationServiceTest,OnlineDeepSeekTranslationTest,TranslationFailureTest,OnlineTranslationCoordinatorTest,FloatingViewModelTest' test
 ```
 
 只改选区结果契约时，可缩小为：
@@ -37,7 +40,9 @@ $env:JAVA_HOME = 'C:\Program Files\Java\jdk-25.0.4-full'
 ./mvnw.cmd '-Dtest=SelectionResultTest' test
 ```
 
-上面的六类为D08实际定向范围：18+9+10+24+9+8=78，失败/错误/跳过均为0，退出码0 / BUILD SUCCESS（2026-10-18T20:19:08+02:00），六份Surefire文本报告已读取。相同Maven命令还执行dependency:build-classpath生成/复用target/ui-classpath.txt；随后test-compile同步最新焦点样式，按既有Java参数依次运行键盘52与窗口165，两种main检查不能与78项JUnit或彼此累计成同一测试集。选择核心触发回归加展示模型，再执行真实FXML/控制器/焦点路径；未改HTTP/选区协议/持久化格式，不重跑其无关独立类。见[键盘操作与证据边界](keyboard-focus.md)。
+上面的八类为D09实际定向范围：11+13+10+17+9+7+9+8=84，失败/错误/跳过均为0，退出码0 / BUILD SUCCESS（2026-10-19T18:07:27+02:00），八份Surefire文本报告已读取。首轮82项中有2个读取失败断言失败：定位到AbstractPreferences.get会吞掉getSpi异常并返回默认值；修正假后端在公开get边界抛出可观察故障，保留原故障断言，另增2项真实SPI吞异常的局限断言。不是删除/放宽断言、重跑碰运气或修改生产逻辑掩盖失败。随后独立FX main输出PREFERENCES_SMOKE_PASSED: 40 checks、UI_SMOKE_PASSED: 165 checks、KEYBOARD_SMOKE_PASSED: 52 checks，整个作业退出码0；不得相加冒充单一测试集。选择配置/密钥/在线准入/HTTP错误/展示相关链路，没有改原生筛选和选区协议；真实FX补足控制器接线与重建恢复验证，非全部端到端证明。命令与限制见[v2.1.9](releases/v2.1.9.md)。
+
+D08历史六类实际定向范围：18+9+10+24+9+8=78，失败/错误/跳过均为0，退出码0 / BUILD SUCCESS（2026-10-18T20:19:08+02:00），六份Surefire文本报告已读取。相同Maven命令还执行dependency:build-classpath生成/复用target/ui-classpath.txt；随后test-compile同步最新焦点样式，按既有Java参数依次运行键盘52与窗口165，两种main检查不能与78项JUnit或彼此累计成同一测试集。选择核心触发回归加展示模型，再执行真实FXML/控制器/焦点路径；未改HTTP/选区协议/持久化格式，不重跑其无关独立类。见[键盘操作与证据边界](keyboard-focus.md)。
 
 D07实际定向五类（不含FloatingViewModelTest）范围：14+7+10+24+9=64，失败/错误/跳过均为0，最终命令退出码0 / BUILD SUCCESS（2026-10-17T14:38:48+02:00）；五份Surefire文本报告已核对。新增21项筛选/组合链，回归43项用例/协调器/在线开关协同。没有改选区解码、模型/FX展示、配置格式、HTTP实现或模块依赖，未重跑这些独立类；不是缩小已有断言或跳过失败。D06实际定向七类为WindowsSelectedTextServiceTest、SelectionResultTest、TranslateSelectionUseCaseTest、LatestTranslationCoordinatorTest、FloatingViewModelTest、OnlineDeepSeekTranslationTest、OnlineTranslationCoordinatorTest，共84项。D01历史15、D02历史28、D03历史42、D04历史68、D05历史95、D06历史84均保留原执行含义；不同增量集合不能相加或解释为测试被删除。
 
@@ -50,6 +55,8 @@ D07筛选器只决定是否发翻译通知，Windows回调仍统一CallNextHookE
 这不是HTTP取消器：已在途服务仍可能执行/计费；检查通过到真正开始服务之间也存在并发窗口，不能保证过时请求完全不发送。选区仍在后台捕获，编号证明通知意图顺序，不证明捕获的是按键瞬间的选区。D03中None/Unknown分别显示未选中文字/无法读取选区；读取、翻译、失败时同样保留之前展示并标“上次结果”，只有最新成功移除标记。状态与成功/错误同样在UI执行时检查意图编号。UI执行器契约为串行FIFO（生产Platform.runLater），不支持任意乱序线程池。状态标记不证明捕获准确或取消了HTTP。
 
 D05应用入口把同一OnlineTranslationPolicy注入控制器、协调器与真实服务。默认/拒绝不捕获选区、不读取密钥、不发送；每次触发保留版本化许可，关闭和再次开启均使旧许可永久失效。实际sendAsync准入与关闭共用短锁，等待HTTP响应在锁外；关闭后不能新准入，关闭前已准入的请求仍可能发送/完成/计费，不能撤回文本。协调器在真实UI执行时复查意图/许可，关闭后旧状态/成功/错误不发布。选择开启不自动重发，需要新的触发。许可跨越发送边界解决的是知情联网开关的准入竞争，不宣称已解决所有最新意图/选区/关闭的检查间隙。
+
+D09AppearancePreferences只读原有6项外观键；损坏/可观察异常逐项默认，不启动时覆盖原数据，写入经flush后才提示保存。外观保存失败可已改当前缓存，不能保证后端实际未持久化。ApiKeyStore保存/删除成功要求flush；失败尽力恢复旧值但不能保证后端故障下的持久回滚。公开构造器始终DPAPI；storedState的本地解密/可读不代表联网验证，损坏可删除重存。保存不自动同意/发请求、不把错误标成功，删除不撤回在途HTTP，也不关闭已同意的在线开关。AbstractPreferences可能静默吞底层读取故障，此时只能按缺失安全回退，不能承诺逐一诊断。在线同意继续使用独立D05版本化策略；触发规则仍固定，不新增未承诺的快捷键偏好。窗口坐标/多屏修复仍归后续D10，不混入本次外观6键契约。
 
 pom显式使用Surefire 3.5.4运行JUnit 5，测试JVM使用classpath，避免为了测试去扩大生产模块exports/opens；生产编译目标和module-info保持原样。failIfNoTests=true，不允许空测试集当作成功。
 
