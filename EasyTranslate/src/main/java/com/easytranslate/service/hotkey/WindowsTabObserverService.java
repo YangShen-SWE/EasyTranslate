@@ -44,11 +44,13 @@ public final class WindowsTabObserverService implements GlobalHotkeyService {
   private volatile RuntimeException startFailure;
   private Thread hookThread;
   private boolean started;
+  private volatile boolean closed;
 
   @Override
   public synchronized void start(Runnable onTriggered) {
     Objects.requireNonNull(onTriggered, "onTriggered");
 
+    if (closed) throw new IllegalStateException("Tab 监听已关闭，请创建新实例");
     if (started) {
       throw new IllegalStateException("Tab 监听已经启动");
     }
@@ -126,8 +128,10 @@ public final class WindowsTabObserverService implements GlobalHotkeyService {
       hook = installed;
       hookThreadId = Kernel32.INSTANCE.GetCurrentThreadId();
       ready.countDown();
+      // A timed-out start can finish installing after close; never enter its message loop.
+      if (closed) return;
 
-      while (true) {
+      while (!closed) {
         int result = User32.INSTANCE.GetMessage(message, null, 0, 0);
 
         if (result == 0) { // 收到退出消息
@@ -182,6 +186,7 @@ public final class WindowsTabObserverService implements GlobalHotkeyService {
 
   @Override
   public synchronized void close() {
+    closed = true;
     if (hookThreadId != 0) {
       User32.INSTANCE.PostThreadMessage(
           hookThreadId,

@@ -1,5 +1,9 @@
 # Core tests / 核心增量测试
 
+## D10补跑（2026-10-22）
+
+WindowGeometryTest 9项、HotkeySessionTest 6项，加TabTriggerFilterTest 18、TabTriggerFlowTest 9、LatestTranslationCoordinatorTest 24、OnlineTranslationCoordinatorTest 9，共75JUnit，失败/错误/跳过0。假屏幕矩形和假原生会话，不等于实机拔插/混合DPI或真实hook压力测试。窗口独立main本次171（新增位置6）、键盘52、偏好40均退出0，各自独立不合计；命令与边界见[v2.1.10](releases/v2.1.10.md)。历史数字保持原执行含义。
+
 ## What these tests check / 测试范围
 
 The core JUnit tests run without starting JavaFX, Windows hooks, UI Automation, or a real translation API. They use in-memory services through the existing interfaces. They do not prove that selection capture or real API requests work on a user's computer.

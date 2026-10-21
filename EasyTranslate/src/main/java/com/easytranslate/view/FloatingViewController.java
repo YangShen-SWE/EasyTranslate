@@ -190,8 +190,19 @@ public class FloatingViewController {
     translatedScroll.setTooltip(new Tooltip("F6进入译文，方向键/翻页键滚动；Ctrl+C复制译文"));
     sourceScroll.setTooltip(new Tooltip("Shift+F6进入原文，方向键/翻页键滚动"));
     settingsButton.setTooltip(new Tooltip("设置（Ctrl+,）；Esc关闭当前窗口"));
-    stage.setOnShown(event -> { queueResize(); refreshMotion(); });
+    javafx.collections.ListChangeListener<javafx.stage.Screen> screensChanged = change -> {
+      if (stage.isShowing()) com.easytranslate.config.WindowPositionStore.recover(stage);
+    };
+    javafx.beans.InvalidationListener scaleChanged = ignored -> queueResize();
+    stage.setOnShown(event -> {
+      javafx.stage.Screen.getScreens().removeListener(screensChanged);
+      javafx.stage.Screen.getScreens().addListener(screensChanged);
+      queueResize(); refreshMotion();
+    });
+    stage.outputScaleXProperty().addListener(scaleChanged);
+    stage.outputScaleYProperty().addListener(scaleChanged);
     stage.addEventHandler(javafx.stage.WindowEvent.WINDOW_HIDDEN, event -> {
+      javafx.stage.Screen.getScreens().removeListener(screensChanged);
       copyFeedback.stop();
       motion.close();
       if (settingsStage != null) settingsStage.close();
@@ -278,6 +289,7 @@ public class FloatingViewController {
       stage.sizeToScene();
       if (Double.isFinite(x)) stage.setX(x);
       if (Double.isFinite(y)) stage.setY(y);
+      if (stage.isShowing()) com.easytranslate.config.WindowPositionStore.recover(stage);
     });
   }
 

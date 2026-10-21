@@ -31,7 +31,7 @@ import java.io.IOException;
 
 public class EasyTranslateApplication extends Application
 {
-  private GlobalHotkeyService tabObserver;
+  private com.easytranslate.service.hotkey.HotkeySession tabObserver;
   private LatestTranslationCoordinator translationCoordinator;
   @Override
   public void start(Stage stage) throws IOException {
@@ -88,8 +88,13 @@ public class EasyTranslateApplication extends Application
     // Invalidate as soon as the main window hides, before Application.stop or a queued UI callback.
     stage.addEventHandler(WindowEvent.WINDOW_HIDING, event -> translationCoordinator.close());
     controller.enableGlobalInput();
-    tabObserver = new WindowsTabObserverService();
-    tabObserver.start(translationCoordinator::trigger);
+    tabObserver = new com.easytranslate.service.hotkey.HotkeySession(WindowsTabObserverService::new);
+    stage.addEventHandler(WindowEvent.WINDOW_HIDING, event -> tabObserver.close());
+    try {
+      tabObserver.start(translationCoordinator::trigger);
+    } catch (RuntimeException | LinkageError failure) {
+      controller.showTranslationError("Tab监听启动失败，未启用划词翻译；请关闭应用后重试。设置与已有译文仍可使用。");
+    }
 //    SelectedTextService selectionService = new WindowsSelectedTextService();
 //    tabObserver.start(() -> {
 //      SelectionResult result = selectionService.getSelectedText();

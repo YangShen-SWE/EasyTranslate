@@ -60,6 +60,25 @@ public class FloatingWindowSmokeTest extends Application {
     controller.configureStage(stage);
     stage.centerOnScreen();
     stage.show();
+    later(this::recoverPosition);
+  }
+
+  private void recoverPosition() {
+    var positions = new com.easytranslate.config.WindowPositionStore(preferences.node("position"));
+    stage.setX(100000); stage.setY(100000);
+    positions.save(stage);
+    stage.setX(0); stage.setY(0); positions.restore(stage);
+    check(stage.getX() == 100000, "temporary saved detached coordinate restored before recovery");
+    com.easytranslate.config.WindowPositionStore.recover(stage);
+    var visual = javafx.stage.Screen.getScreensForRectangle(stage.getX(), stage.getY(), 1, 1)
+        .getFirst().getVisualBounds();
+    check(stage.getX() >= visual.getMinX() && stage.getY() >= visual.getMinY(), "recovered top left visible");
+    check(stage.getX() + stage.getWidth() <= visual.getMaxX() + 1, "recovered right edge visible");
+    check(stage.getY() + stage.getHeight() <= visual.getMaxY() + 1, "recovered bottom edge visible");
+    check(!((Button) root.lookup("#settingsButton")).isDisabled(), "settings reachable after recovery");
+    positions.save(stage);
+    double savedX = stage.getX(); stage.setX(-100000); positions.restore(stage);
+    check(stage.getX() == savedX, "corrected coordinate round trip");
     later(this::emptyState);
   }
 
