@@ -1,5 +1,11 @@
 # Core tests / 核心增量测试
 
+## D11构建门禁（2026-10-22补跑）
+
+`./mvnw.cmd '-Dtest=BuildArtifactVerifierTest' package`最终13项JUnit，失败/错误/跳过0，退出0 / BUILD SUCCESS（00:38:09+02:00），Surefire文本报告已读取。仅构建测试，不启动FX/原生/HTTP/个人配置：JDK工具创建真实微型模块描述符，验证文件名/内嵌坐标/Manifest/资源/旧模块版本拒绝，以及显式模块版本准备和拒绝修改旧坐标包。初轮测试夹具直接引用javax.tools导致java.compiler模块不可见，改为java.base的ToolProvider查找JDK javac，不扩大生产module-info；编译失败不算断言失败或通过。
+
+真实package之后运行显式`--stamp-module-version`准备，再独立只读校验，均退出0；JAR模块描述与文件名/Manifest/Maven元数据一致2.1.11。发现增量编译仅改pom不更新module-info.class的真实偏差，默认门禁拒绝，显式准备只给坐标等已验证归档写模块版本，不伪造其他元数据。步骤和环境证据见[构建检查](build-verification.md)与[v2.1.11](releases/v2.1.11.md)。13项不是完整业务回归/运行镜像证明。D11无生产Java/FXML/CSS变动，未重跑D10窗口171/键盘52/偏好40，不把历史通过算本次UI。完整JDK内置JavaFX25.0.4会优先于Maven声明21.0.6：既有本机FX证据不应标成实际运行21.0.6，依赖声明未改。
+
 ## D10补跑（2026-10-22）
 
 WindowGeometryTest 9项、HotkeySessionTest 6项，加TabTriggerFilterTest 18、TabTriggerFlowTest 9、LatestTranslationCoordinatorTest 24、OnlineTranslationCoordinatorTest 9，共75JUnit，失败/错误/跳过0。假屏幕矩形和假原生会话，不等于实机拔插/混合DPI或真实hook压力测试。窗口独立main本次171（新增位置6）、键盘52、偏好40均退出0，各自独立不合计；命令与边界见[v2.1.10](releases/v2.1.10.md)。历史数字保持原执行含义。
