@@ -6,7 +6,7 @@
 
 2026-10-22实测：C:\Program Files\Java\jdk-25.0.4-full 的java/javac/jpackage均25.0.4；此完整JDK内置JavaFX25.0.4。Maven声明仍为JavaFX21.0.6，没有升级依赖。使用既有UI检查器的module-path后，`java --list-modules`仍报告同名系统模块javafx.controls/fxml/graphics/base为25.0.4；Maven通用无平台jar另外表现为21.0.6的Empty自动模块。
 
-所以“依赖声明21.0.6”不等于“本机UI实际运行21.0.6”。历史UI检查的通过只证明其实际环境，不是21/25两套均已测试。不能把JDK自带jmods和Maven同名JavaFX jar混在jlink输入中碰运气。纯JDK25+Maven21路径、另一机器和完整运行镜像仍待单独验证；本周期不升级依赖或悄悄更换JDK。
+所以“依赖声明21.0.6”不等于“本机UI实际运行21.0.6”。历史UI检查的通过只证明其实际环境，不是21/25两套均已测试。不能把JDK自带jmods和Maven同名JavaFX jar混在jlink输入中碰运气。纯JDK25+Maven21路径、另一机器和完整主GUI启动仍待单独验证；D12诊断镜像证据见后文；本周期不升级依赖或悄悄更换JDK。
 
 ## 标准本地构建门禁
 
@@ -30,6 +30,10 @@ if ($LASTEXITCODE -ne 0) { throw 'artifact verification failed' }
 
 maven-jar-plugin固定原本实际使用的2.4并增加Implementation-Version，不升级运行依赖。ZIP时间/工具链和文件顺序等仍可能影响哈希；SHA不是可复现字节/签名/安全审计证明。校验条目存在不等于类/资源内容与当前全部源码一致，也不是运行镜像启动证明。
 
-## 打包/发布边界
+## D12本地诊断应用镜像
+
+D12新增当前pom版本的jlink + jpackage --type app-image流程，实际选择完整JDK25.0.4内置JavaFX为唯一FX来源，排除Maven FX jar；Jackson/JNA放应用classpath，单独随包JNA Windows x64 DLL并禁止默认临时解包。镜像自带运行时；本机EXE --diagnose及含空格/中文目录搬迁、排除外置Java后的诊断均通过，版本2.1.12；不启动真实主GUI/钩子/配置/HTTP。完整命令、临时解包失败与修复、首用/卸载保留矩阵见[安装首用指南](installation-first-use.md)。这是D11之后新增的镜像证据，不回写D11为已验证；不证明干净Windows或安装器。
+
+## D11历史打包/发布边界
 
 当前D11只创建并检查开发JAR；未jlink、未jpackage安装器、未启动主程序（避免真实配置/全局监听）、未发布GitHub Release。JAR不是自带运行时的Windows安装包。后续D12须选择并记录唯一JavaFX运行时来源、校验应用镜像/入口版本，再做首用/卸载/保留数据检查；没有干净Windows就保留待验。所有jpackage的app-version/产物名须从同一pom值导出，不另抄常量；未发布前README现有2.1.0下载保持原样。

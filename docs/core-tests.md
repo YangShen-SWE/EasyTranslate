@@ -1,5 +1,13 @@
 # Core tests / 核心增量测试
 
+## D12镜像与离线入口（2026-10-22提前）
+
+最终`./mvnw.cmd '-Dtest=DesktopLauncherTest,AppImageVerifierTest,BuildArtifactVerifierTest,OnlineTranslationPolicyTest,ApiKeyStoreTest' package`：55JUnit，失败/错误/跳过0，BUILD SUCCESS / 退出0（13:25:54+02:00），五份报告已读取。入口3项（默认委托/非法参数不启动/非打包诊断拒绝）、镜像16项（启动配置/版本/模块/DLL/禁临时解包/拒混FX/诊断输出及运行依赖筛选）、归档13、在线许可10、假密钥13；循环不是额外方法。扩大到首用配置/密钥边界，但不冒充真实进程/干净机持久化。
+
+之后真实jlink/jpackage --type app-image、镜像静态门禁、随包EXE --diagnose成功，APP_IMAGE_VERIFIED / 退出0。实际Java25.0.4+9-LTS、JavaFX25.0.4、JNA5.18.1、源码/入口2.1.12；搬迁到含中文空格路径且JAVA_HOME无效/PATH无外置Java后诊断仍退出0。单一系统JavaFX，排除Maven FX jar，实际加载随包JNA DLL；不运行FX主窗、全局钩子、HTTP、个人配置或真实密钥。该独立镜像诊断不计入55JUnit。
+
+首轮镜像启动失败暴露JNA java.logging依赖及临时解包拒绝访问；加入日志模块拒绝测试、显式随包DLL与jna.nounpack/nosys门禁后重建通过。未禁断言/改系统权限/伪称临时目录问题已修复。未改既有控制器/FXML/CSS/主应用业务接线，未重跑D10独立FX171/52/40，不拿历史结果充本次UI。完整首用、卸载保留/干净Windows待验见[安装首用指南](installation-first-use.md)与[v2.1.12](releases/v2.1.12.md)。
+
 ## D11构建门禁（2026-10-22补跑）
 
 `./mvnw.cmd '-Dtest=BuildArtifactVerifierTest' package`最终13项JUnit，失败/错误/跳过0，退出0 / BUILD SUCCESS（00:38:09+02:00），Surefire文本报告已读取。仅构建测试，不启动FX/原生/HTTP/个人配置：JDK工具创建真实微型模块描述符，验证文件名/内嵌坐标/Manifest/资源/旧模块版本拒绝，以及显式模块版本准备和拒绝修改旧坐标包。初轮测试夹具直接引用javax.tools导致java.compiler模块不可见，改为java.base的ToolProvider查找JDK javac，不扩大生产module-info；编译失败不算断言失败或通过。
