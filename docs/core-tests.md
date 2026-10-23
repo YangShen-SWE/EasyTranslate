@@ -1,5 +1,11 @@
 # Core tests / 核心增量测试
 
+## D13词本保存契约（2026-10-23）
+
+模块使用JDK25.0.4：`./mvnw.cmd '-Dtest=VocabularySaveBoundaryTest,LatestTranslationCoordinatorTest,OnlineTranslationCoordinatorTest,TranslateSelectionUseCaseTest' test`。最终58JUnit（词本新增15、最新协调24、在线协调9、选区用例10），失败/错误/跳过0，退出0 / BUILD SUCCESS，18:06:24+02:00；四份Surefire文本报告已读。共享协调器变更因此扩大关联路径，不只跑新增类。首轮56不累计，最终移除误写的不存在TranslationOperationTest选择项，不冒称第五类通过。
+
+验证最新展示后的候选、旧响应/新触发/空选区/未知/过长/失败/关闭撤销、在线撤销、展示异常/重入、有效词形、规范键、连点与原子仓库去重、失败隔离/可显式重试。全部假服务、内存仓库/配置，无真实DB/API/密钥或个人数据；不等于真实数据库持久性。原生产构造不启用收集，未改UI，未重跑FX或构建镜像；既有UI与D12镜像不是本次通过数。见[词本契约](vocabulary-save-contract.md)与[v2.1.13](releases/v2.1.13.md)。
+
 ## D12镜像与离线入口（2026-10-22提前）
 
 最终`./mvnw.cmd '-Dtest=DesktopLauncherTest,AppImageVerifierTest,BuildArtifactVerifierTest,OnlineTranslationPolicyTest,ApiKeyStoreTest' package`：55JUnit，失败/错误/跳过0，BUILD SUCCESS / 退出0（13:25:54+02:00），五份报告已读取。入口3项（默认委托/非法参数不启动/非打包诊断拒绝）、镜像16项（启动配置/版本/模块/DLL/禁临时解包/拒混FX/诊断输出及运行依赖筛选）、归档13、在线许可10、假密钥13；循环不是额外方法。扩大到首用配置/密钥边界，但不冒充真实进程/干净机持久化。

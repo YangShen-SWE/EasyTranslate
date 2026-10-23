@@ -16,6 +16,7 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
   private final Consumer<TranslationOperation> onOperation;
   private final com.easytranslate.config.OnlineTranslationPolicy onlinePolicy;
   private com.easytranslate.config.OnlineTranslationPolicy.Permit activePermit;
+  private final VocabularySaveBoundary vocabulary;
   private long latestIntent;
   private boolean closed;
 
@@ -34,6 +35,16 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
       Consumer<Translation> onTranslation, Consumer<Throwable> onFailure,
       Consumer<TranslationOperation> onOperation,
       com.easytranslate.config.OnlineTranslationPolicy onlinePolicy) {
+    this(useCase, uiExecutor, onTranslation, onFailure, onOperation, onlinePolicy, null);
+  }
+
+  /** Opt-in boundary; legacy production wiring does not collect or save vocabulary. */
+  public LatestTranslationCoordinator(TranslateSelectionUseCase useCase, Executor uiExecutor,
+      Consumer<Translation> onTranslation, Consumer<Throwable> onFailure,
+      Consumer<TranslationOperation> onOperation,
+      com.easytranslate.config.OnlineTranslationPolicy onlinePolicy,
+      VocabularySaveBoundary vocabulary) {
+    this.vocabulary = vocabulary;
     this.onlinePolicy = onlinePolicy;
     this.onOperation = Objects.requireNonNull(onOperation, "onOperation");
     this.useCase = Objects.requireNonNull(useCase, "useCase");
@@ -46,6 +57,7 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
   public synchronized void trigger() {
     if (closed) return;
     long intent = ++latestIntent;
+    if (vocabulary != null) vocabulary.invalidate();
     var permit = onlinePolicy == null ? null : onlinePolicy.permit();
     activePermit = permit;
     if (permit != null && !permit.isAllowed()) {
@@ -88,6 +100,7 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
       onTranslation.accept(value);
       // A consumer may reenter trigger/close; never publish this intent's status afterwards.
       if (isCurrent(intent)) onOperation.accept(TranslationOperation.SUCCEEDED);
+      if (isCurrent(intent) && vocabulary != null) vocabulary.displayed(intent, value);
     });
   }
 
@@ -95,6 +108,7 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
   public synchronized void refreshOnlineAccess() {
     if (closed || onlinePolicy == null) return;
     long intent = ++latestIntent;
+    if (vocabulary != null) vocabulary.invalidate();
     activePermit = null;
     queueOperation(intent, onlinePolicy.permit().isAllowed()
         ? TranslationOperation.IDLE : TranslationOperation.ONLINE_DISABLED);
@@ -104,5 +118,6 @@ public final class LatestTranslationCoordinator implements AutoCloseable {
   @Override
   public synchronized void close() {
     closed = true;
+    if (vocabulary != null) vocabulary.close();
   }
 }
